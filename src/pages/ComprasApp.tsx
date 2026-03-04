@@ -336,10 +336,15 @@ const ComprasApp: React.FC = () => {
                   const height = (item.amount / max) * 100;
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end max-w-[60px]">
-                      <div className="absolute bottom-[calc(100%+4px)] bg-nav text-nav-foreground text-[6px] md:text-[8px] font-black px-1.5 py-0.5 rounded-lg whitespace-nowrap z-10">
-                        {formatCurrency(item.amount).replace('R$', '').trim()}
+                      <div className="w-full bg-primary rounded-t-lg transition-all shadow-md relative flex items-center justify-center" style={{ height: `${height}%` }}>
+                        <div className="flex flex-col items-center leading-none py-1">
+                          {formatCurrency(item.amount).split('').map((char, i) => (
+                            <span key={i} className="text-[7px] md:text-[9px] font-black text-primary-foreground drop-shadow-sm" style={{ lineHeight: '1.1' }}>
+                              {char === ' ' ? '\u00A0' : char}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="w-full bg-primary rounded-t-lg transition-all shadow-md" style={{ height: `${height}%` }}></div>
                       <div className="absolute top-full mt-2 -rotate-45 origin-top-right text-[7px] md:text-[10px] font-black text-muted-foreground whitespace-nowrap uppercase tracking-tighter">
                         {new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                       </div>

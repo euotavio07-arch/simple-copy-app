@@ -336,13 +336,15 @@ const ComprasApp: React.FC = () => {
                   const height = (item.amount / max) * 100;
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end max-w-[60px]">
-                      <div className="w-full bg-primary rounded-t-lg transition-all shadow-md relative flex items-center justify-center" style={{ height: `${height}%` }}>
-                        <div className="flex flex-col items-center leading-none py-1">
-                          {formatCurrency(item.amount).split('').map((char, i) => (
-                            <span key={i} className="text-[7px] md:text-[9px] font-black text-primary-foreground drop-shadow-sm" style={{ lineHeight: '1.1' }}>
-                              {char === ' ' ? '\u00A0' : char}
-                            </span>
-                          ))}
+                      <div className="w-full bg-primary rounded-t-lg transition-all shadow-md relative" style={{ height: `${height}%`, minHeight: '20px' }}>
+                        <div className="absolute inset-0 flex items-center justify-center z-10">
+                          <div className="bg-black/40 backdrop-blur-sm rounded-lg px-1.5 py-1.5 flex flex-col items-center leading-none">
+                            {formatCurrency(item.amount).split('').map((char, i) => (
+                              <span key={i} className="text-[7px] md:text-[9px] font-black text-white drop-shadow-md" style={{ lineHeight: '1.15' }}>
+                                {char === ' ' ? '\u00A0' : char}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <div className="absolute top-full mt-2 -rotate-45 origin-top-right text-[7px] md:text-[10px] font-black text-muted-foreground whitespace-nowrap uppercase tracking-tighter">

@@ -27,6 +27,16 @@ export interface FormData {
   sector: string;
 }
 
+export interface Cycle {
+  id: string;
+  name: string;
+  createdAt: string;
+  purchases: Purchase[];
+  companies: Company[];
+  sectors: Sector[];
+  purchaseLimit: number;
+}
+
 export const DEFAULT_SECTORS = [
   "Mercearia e Secos",
   "Padaria e Confeitaria",

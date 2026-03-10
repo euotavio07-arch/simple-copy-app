@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Trash2, Calendar, Receipt, AlertCircle, Printer, Loader2, ChevronRight, X, BarChart3, FileText, Pencil, Check } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Cycle, DEFAULT_SECTORS } from '@/types/purchases';
-import logoImg from '@/assets/logo-fotech.jpeg';
+import logoImg from '@/assets/logo-fotech-completa.jpeg';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -21,6 +21,13 @@ const CyclesPage: React.FC = () => {
   const [newCycleName, setNewCycleName] = useState('');
   const [newCyclePeriodFrom, setNewCyclePeriodFrom] = useState('');
   const [newCyclePeriodTo, setNewCyclePeriodTo] = useState('');
+
+  // Edit cycle modal
+  const [showEditCycleModal, setShowEditCycleModal] = useState(false);
+  const [editCycleId, setEditCycleId] = useState('');
+  const [editCycleName, setEditCycleName] = useState('');
+  const [editCyclePeriodFrom, setEditCyclePeriodFrom] = useState('');
+  const [editCyclePeriodTo, setEditCyclePeriodTo] = useState('');
 
   // PDF options modal
   const [showPDFModal, setShowPDFModal] = useState(false);
@@ -67,6 +74,20 @@ const CyclesPage: React.FC = () => {
     setCycles(updated);
     setShowNewCycleModal(false);
     navigate(`/cycle/${newCycle.id}`);
+  };
+
+  const openEditCycleModal = (cycle: Cycle, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditCycleId(cycle.id);
+    setEditCycleName(cycle.name);
+    setEditCyclePeriodFrom(cycle.periodFrom || '');
+    setEditCyclePeriodTo(cycle.periodTo || '');
+    setShowEditCycleModal(true);
+  };
+
+  const handleEditCycle = () => {
+    setCycles(prev => prev.map(c => c.id === editCycleId ? { ...c, name: editCycleName, periodFrom: editCyclePeriodFrom, periodTo: editCyclePeriodTo } : c));
+    setShowEditCycleModal(false);
   };
 
   const executeDelete = () => {
@@ -330,11 +351,14 @@ const CyclesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
-      {/* Navbar */}
       <nav className="glass sticky top-0 z-50 border-b border-border/60">
-        <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logoImg} alt="Logo" className="w-10 h-10 rounded-xl apple-shadow-md object-cover" />
+        <div className="max-w-3xl mx-auto px-5 pt-4 pb-3">
+          {/* Logo centered */}
+          <div className="flex justify-center mb-3">
+            <img src={logoImg} alt="FOTech Solutions" className="h-16 rounded-2xl apple-shadow-md object-contain" />
+          </div>
+          {/* Name left, PDF right */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isEditingAppName ? (
                 <div className="flex items-center gap-2">
@@ -360,17 +384,17 @@ const CyclesPage: React.FC = () => {
                 </div>
               )}
             </div>
+            {cycles.length > 1 && (
+              <button
+                onClick={() => setShowPDFModal(true)}
+                disabled={isGeneratingPDF}
+                className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                PDF Geral
+              </button>
+            )}
           </div>
-          {cycles.length > 1 && (
-            <button
-              onClick={() => setShowPDFModal(true)}
-              disabled={isGeneratingPDF}
-              className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
-            >
-              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-              PDF Geral
-            </button>
-          )}
         </div>
       </nav>
 
@@ -421,12 +445,20 @@ const CyclesPage: React.FC = () => {
                         <span className="text-[9px] text-muted-foreground font-medium">{cycle.purchases.length} notas</span>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, id: cycle.id, name: cycle.name }); }}
-                      className="p-2.5 text-muted-foreground hover:text-destructive rounded-xl hover:bg-destructive/5 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => openEditCycleModal(cycle, e)}
+                        className="p-2.5 text-muted-foreground hover:text-primary rounded-xl hover:bg-primary/5 transition-all"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, id: cycle.id, name: cycle.name }); }}
+                        className="p-2.5 text-muted-foreground hover:text-destructive rounded-xl hover:bg-destructive/5 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex gap-3 cursor-pointer" onClick={() => navigate(`/cycle/${cycle.id}`)}>
                     <div className="flex-1 bg-secondary/60 p-3 rounded-xl text-center">
@@ -574,6 +606,71 @@ const CyclesPage: React.FC = () => {
                 Eliminar Agora
               </button>
               <button onClick={() => setConfirmDelete({ show: false, id: null, name: '' })} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Cycle Modal */}
+      {showEditCycleModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-foreground/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-3xl p-8 max-w-sm w-full apple-shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground uppercase tracking-tight">Editar Ciclo</h3>
+              <button onClick={() => setShowEditCycleModal(false)} className="p-2 rounded-xl hover:bg-secondary transition-all">
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Nome do Ciclo</label>
+                <input
+                  type="text"
+                  value={editCycleName}
+                  onChange={e => setEditCycleName(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Período — Início
+                </label>
+                <input
+                  type="date"
+                  value={editCyclePeriodFrom}
+                  onChange={e => setEditCyclePeriodFrom(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Período — Fim
+                </label>
+                <input
+                  type="date"
+                  value={editCyclePeriodTo}
+                  onChange={e => setEditCyclePeriodTo(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 mt-8">
+              <button
+                onClick={handleEditCycle}
+                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all"
+              >
+                Salvar Alterações
+              </button>
+              <button
+                onClick={() => setShowEditCycleModal(false)}
+                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
                 Cancelar
               </button>
             </div>

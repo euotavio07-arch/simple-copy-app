@@ -30,9 +30,13 @@ const ComprasApp: React.FC = () => {
 
   const cycle = useMemo(() => cycles.find(c => c.id === cycleId), [cycles, cycleId]);
 
-  // Redirect if cycle not found
+  // Redirect if cycle not found (with delay to avoid race condition)
   useEffect(() => {
-    if (!cycle && cycles.length > 0) navigate('/');
+    if (cycles.length === 0) return; // still loading
+    if (!cycle) {
+      const timer = setTimeout(() => navigate('/'), 300);
+      return () => clearTimeout(timer);
+    }
   }, [cycle, cycles, navigate]);
 
   // Helpers to update current cycle

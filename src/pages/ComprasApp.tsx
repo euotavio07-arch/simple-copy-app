@@ -55,9 +55,9 @@ const ComprasApp: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; type: string; title: string }>({ show: false, id: null, type: 'nota', title: '' });
 
-  // Period filter
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
+  // Period filter - initialized from cycle
+  const [filterDateFrom, setFilterDateFrom] = useState(cycle?.periodFrom || '');
+  const [filterDateTo, setFilterDateTo] = useState(cycle?.periodTo || '');
   const [showFilter, setShowFilter] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
@@ -186,6 +186,7 @@ const ComprasApp: React.FC = () => {
       };
       await html2pdf().set(opt).from(element).save();
       setIsGeneratingPDF(false);
+      setIsPrintMode(false);
     }, 1000);
   };
 
@@ -232,6 +233,11 @@ const ComprasApp: React.FC = () => {
             </button>
             <div>
               <h1 className="text-sm md:text-base font-bold tracking-tight capitalize">{cycle.name}</h1>
+              {cycle.periodFrom && cycle.periodTo && (
+                <p className="text-[9px] text-muted-foreground font-medium">
+                  {new Date(cycle.periodFrom + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} — {new Date(cycle.periodTo + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                </p>
+              )}
             </div>
           </div>
 

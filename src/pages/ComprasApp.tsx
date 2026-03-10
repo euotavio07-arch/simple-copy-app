@@ -233,6 +233,11 @@ const ComprasApp: React.FC = () => {
             </button>
             <div>
               <h1 className="text-sm md:text-base font-bold tracking-tight capitalize">{cycle.name}</h1>
+              {cycle.periodFrom && cycle.periodTo && (
+                <p className="text-[9px] text-muted-foreground font-medium">
+                  {new Date(cycle.periodFrom + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} — {new Date(cycle.periodTo + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                </p>
+              )}
             </div>
           </div>
 

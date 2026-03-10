@@ -351,11 +351,14 @@ const CyclesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
-      {/* Navbar */}
       <nav className="glass sticky top-0 z-50 border-b border-border/60">
-        <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logoImg} alt="Logo" className="w-10 h-10 rounded-xl apple-shadow-md object-cover" />
+        <div className="max-w-3xl mx-auto px-5 pt-4 pb-3">
+          {/* Logo centered */}
+          <div className="flex justify-center mb-3">
+            <img src={logoImg} alt="FOTech Solutions" className="h-16 rounded-2xl apple-shadow-md object-contain" />
+          </div>
+          {/* Name left, PDF right */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isEditingAppName ? (
                 <div className="flex items-center gap-2">
@@ -381,17 +384,17 @@ const CyclesPage: React.FC = () => {
                 </div>
               )}
             </div>
+            {cycles.length > 1 && (
+              <button
+                onClick={() => setShowPDFModal(true)}
+                disabled={isGeneratingPDF}
+                className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                PDF Geral
+              </button>
+            )}
           </div>
-          {cycles.length > 1 && (
-            <button
-              onClick={() => setShowPDFModal(true)}
-              disabled={isGeneratingPDF}
-              className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
-            >
-              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-              PDF Geral
-            </button>
-          )}
         </div>
       </nav>
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Trash2, Calendar, Receipt, AlertCircle, Printer, Loader2, ChevronRight, X, BarChart3, FileText, Pencil, Check } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Cycle, DEFAULT_SECTORS } from '@/types/purchases';
-import logoImg from '@/assets/logo-fotech-completa.jpeg';
+import logoImg from '@/assets/logo-fotech-horizontal.png';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -354,8 +354,8 @@ const CyclesPage: React.FC = () => {
       <nav className="glass sticky top-0 z-50 border-b border-border/60">
         <div className="max-w-3xl mx-auto px-5 pt-4 pb-3">
           {/* Logo centered */}
-          <div className="flex justify-center mb-3">
-            <img src={logoImg} alt="FOTech Solutions" className="h-16 rounded-2xl apple-shadow-md object-contain" />
+          <div className="flex justify-center mb-4 py-2">
+            <img src={logoImg} alt="FOTech Solutions" className="h-20 object-contain drop-shadow-lg" />
           </div>
           {/* Name left, PDF right */}
           <div className="flex items-center justify-between">

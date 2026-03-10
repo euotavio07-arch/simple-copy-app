@@ -59,9 +59,9 @@ const ComprasApp: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; type: string; title: string }>({ show: false, id: null, type: 'nota', title: '' });
 
-  // Period filter - initialized from cycle
-  const [filterDateFrom, setFilterDateFrom] = useState(cycle?.periodFrom || '');
-  const [filterDateTo, setFilterDateTo] = useState(cycle?.periodTo || '');
+  // Period filter - initialized empty (no auto filter)
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [showFilter, setShowFilter] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
@@ -432,7 +432,7 @@ const ComprasApp: React.FC = () => {
             <div className="flex justify-between items-center mb-5 md:mb-6">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2.5">
                 {editingId ? <Edit3 className="w-4 h-4 text-warning" /> : <Plus className="w-4 h-4 text-primary" />}
-                {editingId ? 'Modificar Registro' : 'Registar Nova Nota'}
+                {editingId ? 'Modificar Registro' : 'Registrar Nova Nota'}
               </h2>
               {editingId && (
                 <button onClick={() => { setEditingId(null); setFormData(prev => ({ ...prev, company: '', dueDate: '', amount: '' })); }} className="text-xs font-medium text-warning bg-warning/10 hover:bg-warning/15 px-3.5 py-1.5 rounded-full transition-colors">

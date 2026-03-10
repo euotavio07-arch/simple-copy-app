@@ -76,6 +76,20 @@ const CyclesPage: React.FC = () => {
     navigate(`/cycle/${newCycle.id}`);
   };
 
+  const openEditCycleModal = (cycle: Cycle, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditCycleId(cycle.id);
+    setEditCycleName(cycle.name);
+    setEditCyclePeriodFrom(cycle.periodFrom || '');
+    setEditCyclePeriodTo(cycle.periodTo || '');
+    setShowEditCycleModal(true);
+  };
+
+  const handleEditCycle = () => {
+    setCycles(prev => prev.map(c => c.id === editCycleId ? { ...c, name: editCycleName, periodFrom: editCyclePeriodFrom, periodTo: editCyclePeriodTo } : c));
+    setShowEditCycleModal(false);
+  };
+
   const executeDelete = () => {
     if (!confirmDelete.id) return;
     setCycles(prev => prev.filter(c => c.id !== confirmDelete.id));

@@ -612,6 +612,71 @@ const CyclesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Cycle Modal */}
+      {showEditCycleModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-foreground/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-3xl p-8 max-w-sm w-full apple-shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground uppercase tracking-tight">Editar Ciclo</h3>
+              <button onClick={() => setShowEditCycleModal(false)} className="p-2 rounded-xl hover:bg-secondary transition-all">
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Nome do Ciclo</label>
+                <input
+                  type="text"
+                  value={editCycleName}
+                  onChange={e => setEditCycleName(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Período — Início
+                </label>
+                <input
+                  type="date"
+                  value={editCyclePeriodFrom}
+                  onChange={e => setEditCyclePeriodFrom(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Período — Fim
+                </label>
+                <input
+                  type="date"
+                  value={editCyclePeriodTo}
+                  onChange={e => setEditCyclePeriodTo(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 mt-8">
+              <button
+                onClick={handleEditCycle}
+                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all"
+              >
+                Salvar Alterações
+              </button>
+              <button
+                onClick={() => setShowEditCycleModal(false)}
+                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

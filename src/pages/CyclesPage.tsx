@@ -329,12 +329,31 @@ const CyclesPage: React.FC = () => {
       <nav className="glass sticky top-0 z-50 border-b border-border/60">
         <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-foreground p-2.5 rounded-xl apple-shadow-md">
-              <Calculator className="w-5 h-5 text-background" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight">Gestor Gerencial</h1>
-              <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Ciclos de Compras</p>
+            <img src={logoImg} alt="Logo" className="w-10 h-10 rounded-xl apple-shadow-md object-cover" />
+            <div className="flex items-center gap-2">
+              {isEditingAppName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tempAppName}
+                    onChange={e => setTempAppName(e.target.value)}
+                    className="text-base font-bold tracking-tight bg-secondary/60 border border-border/60 focus:border-primary rounded-lg px-2 py-1 outline-none transition-all w-40"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') { setAppName(tempAppName || 'Gestor Gerencial'); setIsEditingAppName(false); } }}
+                  />
+                  <button onClick={() => { setAppName(tempAppName || 'Gestor Gerencial'); setIsEditingAppName(false); }} className="p-1.5 rounded-lg bg-primary text-primary-foreground">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="cursor-pointer group" onClick={() => { setTempAppName(appName); setIsEditingAppName(true); }}>
+                  <div className="flex items-center gap-1.5">
+                    <h1 className="text-base font-bold tracking-tight">{appName}</h1>
+                    <Pencil className="w-3 h-3 text-muted-foreground/0 group-hover:text-muted-foreground/50 transition-all" />
+                  </div>
+                  <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Ciclos de Compras</p>
+                </div>
+              )}
             </div>
           </div>
           {cycles.length > 1 && (

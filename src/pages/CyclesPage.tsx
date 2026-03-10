@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Trash2, Calendar, Receipt, AlertCircle, Printer, Loader2, ChevronRight, X, BarChart3, FileText, Pencil, Check } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Cycle, DEFAULT_SECTORS } from '@/types/purchases';
-import logoImg from '@/assets/logo-fotech-completa.jpeg';
+import logoImg from '@/assets/logo-fotech-horizontal.png';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 

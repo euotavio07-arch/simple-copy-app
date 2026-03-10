@@ -25,6 +25,11 @@ const CyclesPage: React.FC = () => {
   // PDF options modal
   const [showPDFModal, setShowPDFModal] = useState(false);
 
+  // Editable app name
+  const [appName, setAppName] = useLocalStorage<string>('appName', 'Gestor Gerencial');
+  const [isEditingAppName, setIsEditingAppName] = useState(false);
+  const [tempAppName, setTempAppName] = useState('');
+
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";

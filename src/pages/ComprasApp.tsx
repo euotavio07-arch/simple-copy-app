@@ -186,6 +186,7 @@ const ComprasApp: React.FC = () => {
       };
       await html2pdf().set(opt).from(element).save();
       setIsGeneratingPDF(false);
+      setIsPrintMode(false);
     }, 1000);
   };
 

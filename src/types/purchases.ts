@@ -31,6 +31,8 @@ export interface Cycle {
   id: string;
   name: string;
   createdAt: string;
+  periodFrom: string;
+  periodTo: string;
   purchases: Purchase[];
   companies: Company[];
   sectors: Sector[];

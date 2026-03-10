@@ -22,6 +22,13 @@ const CyclesPage: React.FC = () => {
   const [newCyclePeriodFrom, setNewCyclePeriodFrom] = useState('');
   const [newCyclePeriodTo, setNewCyclePeriodTo] = useState('');
 
+  // Edit cycle modal
+  const [showEditCycleModal, setShowEditCycleModal] = useState(false);
+  const [editCycleId, setEditCycleId] = useState('');
+  const [editCycleName, setEditCycleName] = useState('');
+  const [editCyclePeriodFrom, setEditCyclePeriodFrom] = useState('');
+  const [editCyclePeriodTo, setEditCyclePeriodTo] = useState('');
+
   // PDF options modal
   const [showPDFModal, setShowPDFModal] = useState(false);
 

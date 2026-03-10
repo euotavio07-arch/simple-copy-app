@@ -55,9 +55,9 @@ const ComprasApp: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; type: string; title: string }>({ show: false, id: null, type: 'nota', title: '' });
 
-  // Period filter
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
+  // Period filter - initialized from cycle
+  const [filterDateFrom, setFilterDateFrom] = useState(cycle?.periodFrom || '');
+  const [filterDateTo, setFilterDateTo] = useState(cycle?.periodTo || '');
   const [showFilter, setShowFilter] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({

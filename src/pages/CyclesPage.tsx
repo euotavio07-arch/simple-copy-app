@@ -56,7 +56,9 @@ const CyclesPage: React.FC = () => {
       sectors: DEFAULT_SECTORS.map(n => ({ id: generateId(), name: n })),
       purchaseLimit: 120000,
     };
-    setCycles(prev => [newCycle, ...prev]);
+    const updated = [newCycle, ...cycles];
+    window.localStorage.setItem('cycles', JSON.stringify(updated));
+    setCycles(updated);
     setShowNewCycleModal(false);
     navigate(`/cycle/${newCycle.id}`);
   };

@@ -231,38 +231,38 @@ const ComprasApp: React.FC = () => {
       </nav>
 
       {/* --- PDF REPORT --- */}
-      <div id="report-container" className={isPrintMode ? 'block bg-background min-h-screen' : 'hidden'}>
-        <div className="page-break p-10">
-          <div className="flex items-center justify-between mb-8 border-b-4 border-primary pb-6">
+      <div id="report-container" className={isPrintMode ? 'block bg-background' : 'hidden'}>
+        <div className="p-6" style={{ pageBreakAfter: 'always' }}>
+          <div className="flex items-center justify-between mb-4 border-b-2 border-primary pb-3">
             <div>
-              <h2 className="text-2xl font-bold text-foreground uppercase">Resumo de Compras Mensal</h2>
-              <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest mt-1">Extraído em {new Date().toLocaleDateString('pt-BR')}</p>
+              <h2 className="text-lg font-bold text-foreground uppercase">Resumo de Compras Mensal</h2>
+              <p className="text-[8px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">Extraído em {new Date().toLocaleDateString('pt-BR')}</p>
             </div>
-            <div className="bg-foreground p-4 rounded-3xl text-background apple-shadow-lg flex items-center gap-3">
-              <Calculator className="w-8 h-8" />
-              <div className="border-l border-background/20 pl-4">
-                <p className="text-[8px] font-bold uppercase opacity-50">Saldo em Conta</p>
-                <p className="text-lg font-bold">{formatCurrency(balance)}</p>
+            <div className="bg-foreground p-3 rounded-2xl text-background flex items-center gap-2">
+              <Calculator className="w-5 h-5" />
+              <div className="border-l border-background/20 pl-2">
+                <p className="text-[7px] font-bold uppercase opacity-50">Saldo</p>
+                <p className="text-sm font-bold">{formatCurrency(balance)}</p>
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-6 mb-10 text-center">
-            <div className="bg-card p-6 rounded-3xl"><p className="text-[8px] font-medium text-muted-foreground uppercase">Limite</p><p className="text-lg font-bold">{formatCurrency(purchaseLimit)}</p></div>
-            <div className="bg-card p-6 rounded-3xl"><p className="text-[8px] font-medium text-muted-foreground uppercase">Gasto</p><p className="text-lg font-bold text-destructive">{formatCurrency(totalSpent)}</p></div>
-            <div className="bg-card p-6 rounded-3xl border-b-4 border-primary"><p className="text-[8px] font-medium text-muted-foreground uppercase">Saldo</p><p className="text-lg font-bold text-success">{formatCurrency(balance)}</p></div>
+          <div className="grid grid-cols-3 gap-3 mb-5 text-center">
+            <div className="bg-card p-3 rounded-2xl"><p className="text-[7px] font-medium text-muted-foreground uppercase">Limite</p><p className="text-sm font-bold">{formatCurrency(purchaseLimit)}</p></div>
+            <div className="bg-card p-3 rounded-2xl"><p className="text-[7px] font-medium text-muted-foreground uppercase">Gasto</p><p className="text-sm font-bold text-destructive">{formatCurrency(totalSpent)}</p></div>
+            <div className="bg-card p-3 rounded-2xl border-b-2 border-primary"><p className="text-[7px] font-medium text-muted-foreground uppercase">Saldo</p><p className="text-sm font-bold text-success">{formatCurrency(balance)}</p></div>
           </div>
-          <div className="bg-card p-8 rounded-3xl mb-8">
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase mb-6 text-center border-b border-border pb-3">Fluxo Mensal de Vencimentos</h3>
-            <div className="space-y-4">
+          <div className="bg-card p-4 rounded-2xl mb-5">
+            <h3 className="text-[9px] font-bold text-muted-foreground uppercase mb-3 text-center border-b border-border pb-2">Fluxo Mensal de Vencimentos</h3>
+            <div className="space-y-2">
               {totalsByDate.map((item, idx) => {
                 const max = Math.max(...totalsByDate.map(t => t.amount)) || 1;
                 return (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex justify-between text-[8px] font-bold uppercase">
+                  <div key={idx} className="space-y-0.5">
+                    <div className="flex justify-between text-[7px] font-bold uppercase">
                       <span className={getStatusInfo(item.date).color}>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
                       <span>{formatCurrency(item.amount)}</span>
                     </div>
-                    <div className="w-full bg-secondary h-3 rounded-full overflow-hidden">
+                    <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${(item.amount / max) * 100}%` }}></div>
                     </div>
                   </div>
@@ -270,41 +270,41 @@ const ComprasApp: React.FC = () => {
               })}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-8">
-            <div className="bg-card p-6 rounded-3xl">
-              <h3 className="text-[9px] font-bold text-muted-foreground uppercase mb-4 text-center border-b border-border pb-2">Top 10 Fornecedores</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-card p-4 rounded-2xl">
+              <h3 className="text-[8px] font-bold text-muted-foreground uppercase mb-3 text-center border-b border-border pb-1.5">Top 10 Fornecedores</h3>
               {topCompanies.map((item, idx) => (
-                <div key={idx} className="mb-2">
+                <div key={idx} className="mb-1.5">
                   <div className="flex justify-between text-[7px] font-bold uppercase truncate pr-2">
                     <span>{idx + 1}. {item.name}</span>
                     <span>{formatCurrency(item.amount)}</span>
                   </div>
-                  <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-0.5">
+                  <div className="w-full bg-secondary h-1 rounded-full overflow-hidden mt-0.5">
                     <div className="h-full bg-foreground rounded-full" style={{ width: `${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%` }}></div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {sectors.slice(0, 10).map(s => (
-                <div key={s.id} className="bg-card p-3 rounded-2xl border border-border text-center flex flex-col justify-center">
-                  <h4 className="text-[7px] font-bold text-muted-foreground uppercase truncate mb-1">{s.name}</h4>
-                  <p className="text-[9px] font-bold text-foreground leading-none">{formatCurrency(sectorTotals[s.name] || 0)}</p>
-                  <p className="text-[7px] font-bold text-primary mt-2 bg-primary/10 py-0.5 rounded-full">{totalSpent > 0 ? ((sectorTotals[s.name] || 0) / totalSpent * 100).toFixed(1) : 0}%</p>
+                <div key={s.id} className="bg-card p-2 rounded-xl border border-border text-center flex flex-col justify-center">
+                  <h4 className="text-[6px] font-bold text-muted-foreground uppercase truncate mb-0.5">{s.name}</h4>
+                  <p className="text-[8px] font-bold text-foreground leading-none">{formatCurrency(sectorTotals[s.name] || 0)}</p>
+                  <p className="text-[6px] font-bold text-primary mt-1 bg-primary/10 py-0.5 rounded-full">{totalSpent > 0 ? ((sectorTotals[s.name] || 0) / totalSpent * 100).toFixed(1) : 0}%</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="page-break p-10 pt-0">
-          <div className="bg-card rounded-3xl overflow-hidden apple-shadow-sm border border-border">
-            <div className="px-10 py-5 bg-secondary border-b border-border text-center uppercase tracking-widest text-[9px] font-bold">Cronograma Cronológico de Notas</div>
+        <div className="p-6">
+          <div className="bg-card rounded-2xl overflow-hidden border border-border">
+            <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Cronograma Cronológico de Notas</div>
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-card text-[8px] font-bold text-muted-foreground uppercase border-b border-border tracking-widest">
-                  <th className="px-10 py-5">Fornecedor</th>
-                  <th className="px-10 py-5">Status / Data</th>
-                  <th className="px-10 py-5 text-right">Valor</th>
+                <tr className="bg-card text-[7px] font-bold text-muted-foreground uppercase border-b border-border tracking-widest">
+                  <th className="px-6 py-2.5">Fornecedor</th>
+                  <th className="px-6 py-2.5">Status / Data</th>
+                  <th className="px-6 py-2.5 text-right">Valor</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -312,9 +312,9 @@ const ComprasApp: React.FC = () => {
                   const status = getStatusInfo(p.dueDate);
                   return (
                     <tr key={p.id}>
-                      <td className="px-10 py-4 font-semibold text-foreground uppercase text-[9px]">{p.company}</td>
-                      <td className={`px-10 py-4 font-bold text-[9px] ${status.color}`}>{status.label.toUpperCase()} - {new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
-                      <td className="px-10 py-4 text-right font-bold text-foreground text-[9px]">{formatCurrency(p.amount)}</td>
+                      <td className="px-6 py-2 font-semibold text-foreground uppercase text-[8px]">{p.company}</td>
+                      <td className={`px-6 py-2 font-bold text-[8px] ${status.color}`}>{status.label.toUpperCase()} - {new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
+                      <td className="px-6 py-2 text-right font-bold text-foreground text-[8px]">{formatCurrency(p.amount)}</td>
                     </tr>
                   );
                 })}

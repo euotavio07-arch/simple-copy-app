@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useCallback, FormEvent, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Plus, Calendar, Building2, Receipt, Trash2, Edit3, Wallet,
-  Loader2, CheckCircle2, Save, X, Calculator, ArrowRight,
-  PieChart, Layers, Tag, List, BarChart3, Settings, TrendingUp,
-  Printer, Factory, FileText, ChevronDown, EyeOff, Download,
-  Trophy, Clock, AlertCircle
+  Loader2, CheckCircle2, Save, X, Calculator, ArrowLeft,
+  PieChart, Layers, List, BarChart3, Settings, TrendingUp,
+  Printer, ChevronDown, EyeOff, Trophy, Clock, AlertCircle, Filter
 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Purchase, Company, Sector, FormData, DEFAULT_SECTORS } from '@/types/purchases';
+import { Cycle, Purchase, Company, Sector, FormData, DEFAULT_SECTORS } from '@/types/purchases';
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
@@ -15,24 +15,35 @@ const formatCurrency = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
 const getStatusInfo = (dateStr: string) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(dateStr);
-  dueDate.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(dateStr); dueDate.setHours(0, 0, 0, 0);
   const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
   if (diffDays < 0) return { label: 'Vencido', color: 'text-destructive', bg: 'bg-destructive/5', border: 'border-destructive/20' };
   if (diffDays <= 3) return { label: 'Próximo', color: 'text-warning', bg: 'bg-warning/5', border: 'border-warning/20' };
   return { label: 'No prazo', color: 'text-success', bg: 'bg-success/5', border: 'border-success/20' };
 };
 
 const ComprasApp: React.FC = () => {
-  const [purchases, setPurchases] = useLocalStorage<Purchase[]>('purchases', []);
-  const [registeredCompanies, setRegisteredCompanies] = useLocalStorage<Company[]>('companies', []);
-  const [sectors, setSectors] = useLocalStorage<Sector[]>('sectors',
-    DEFAULT_SECTORS.map(name => ({ id: generateId(), name }))
-  );
-  const [purchaseLimit, setPurchaseLimit] = useLocalStorage<number>('purchaseLimit', 120000.00);
+  const navigate = useNavigate();
+  const { cycleId } = useParams<{ cycleId: string }>();
+  const [cycles, setCycles] = useLocalStorage<Cycle[]>('cycles', []);
+
+  const cycle = useMemo(() => cycles.find(c => c.id === cycleId), [cycles, cycleId]);
+
+  // Redirect if cycle not found
+  useEffect(() => {
+    if (!cycle && cycles.length > 0) navigate('/');
+  }, [cycle, cycles, navigate]);
+
+  // Helpers to update current cycle
+  const updateCycle = useCallback((updater: (c: Cycle) => Cycle) => {
+    setCycles(prev => prev.map(c => c.id === cycleId ? updater(c) : c));
+  }, [setCycles, cycleId]);
+
+  const purchases = cycle?.purchases || [];
+  const registeredCompanies = cycle?.companies || [];
+  const sectors = cycle?.sectors || [];
+  const purchaseLimit = cycle?.purchaseLimit || 120000;
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -44,6 +55,11 @@ const ComprasApp: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; type: string; title: string }>({ show: false, id: null, type: 'nota', title: '' });
 
+  // Period filter
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+
   const [formData, setFormData] = useState<FormData>({
     company: '',
     dueDate: '',
@@ -51,7 +67,6 @@ const ComprasApp: React.FC = () => {
     sector: sectors[0]?.name || '',
   });
 
-  // Load html2pdf script
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
@@ -60,16 +75,22 @@ const ComprasApp: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
+  // Filtered purchases by period
+  const filteredPurchases = useMemo(() => {
+    let filtered = purchases;
+    if (filterDateFrom) {
+      filtered = filtered.filter(p => p.dueDate >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      filtered = filtered.filter(p => p.dueDate <= filterDateTo);
+    }
+    return filtered;
+  }, [purchases, filterDateFrom, filterDateTo]);
+
   const handleCompanyChange = useCallback((companyName: string) => {
     setFormData(prev => {
-      const matched = registeredCompanies.find(
-        c => c.name.toLowerCase() === companyName.trim().toLowerCase()
-      );
-      return {
-        ...prev,
-        company: companyName,
-        ...(matched?.lastSector && !editingId ? { sector: matched.lastSector } : {}),
-      };
+      const matched = registeredCompanies.find(c => c.name.toLowerCase() === companyName.trim().toLowerCase());
+      return { ...prev, company: companyName, ...(matched?.lastSector && !editingId ? { sector: matched.lastSector } : {}) };
     });
   }, [registeredCompanies, editingId]);
 
@@ -78,10 +99,10 @@ const ComprasApp: React.FC = () => {
   const handleAddSector = () => {
     if (!newSectorName.trim()) return;
     if (editingSectorId) {
-      setSectors(prev => prev.map(s => s.id === editingSectorId ? { ...s, name: newSectorName.trim() } : s));
+      updateCycle(c => ({ ...c, sectors: c.sectors.map(s => s.id === editingSectorId ? { ...s, name: newSectorName.trim() } : s) }));
       setEditingSectorId(null);
     } else {
-      setSectors(prev => [...prev, { id: generateId(), name: newSectorName.trim() }].sort((a, b) => a.name.localeCompare(b.name)));
+      updateCycle(c => ({ ...c, sectors: [...c.sectors, { id: generateId(), name: newSectorName.trim() }].sort((a, b) => a.name.localeCompare(b.name)) }));
     }
     setNewSectorName("");
   };
@@ -89,33 +110,36 @@ const ComprasApp: React.FC = () => {
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
     if (!formData.company || !formData.dueDate) return;
-
     const companyNameTrimmed = formData.company.trim().toUpperCase();
 
-    const existingCompany = registeredCompanies.find(c => c.name.toLowerCase() === companyNameTrimmed.toLowerCase());
-    if (!existingCompany) {
-      setRegisteredCompanies(prev => [...prev, {
-        id: generateId(), name: companyNameTrimmed, lastSector: formData.sector, createdAt: new Date().toISOString()
-      }]);
-    } else if (existingCompany.lastSector !== formData.sector) {
-      setRegisteredCompanies(prev => prev.map(c => c.id === existingCompany.id ? { ...c, lastSector: formData.sector } : c));
-    }
+    updateCycle(c => {
+      let newCompanies = [...c.companies];
+      const existing = newCompanies.find(co => co.name.toLowerCase() === companyNameTrimmed.toLowerCase());
+      if (!existing) {
+        newCompanies.push({ id: generateId(), name: companyNameTrimmed, lastSector: formData.sector, createdAt: new Date().toISOString() });
+      } else if (existing.lastSector !== formData.sector) {
+        newCompanies = newCompanies.map(co => co.id === existing.id ? { ...co, lastSector: formData.sector } : co);
+      }
 
-    const data = {
-      company: companyNameTrimmed,
-      dueDate: formData.dueDate,
-      amount: parseFloat(formData.amount) || 0,
-      sector: formData.sector || sectors[0]?.name || "Geral",
-      updatedAt: new Date().toISOString(),
-    };
+      const data = {
+        company: companyNameTrimmed,
+        dueDate: formData.dueDate,
+        amount: parseFloat(formData.amount) || 0,
+        sector: formData.sector || c.sectors[0]?.name || "Geral",
+        updatedAt: new Date().toISOString(),
+      };
 
-    if (editingId) {
-      setPurchases(prev => prev.map(p => p.id === editingId ? { ...p, ...data } : p));
-      setEditingId(null);
-    } else {
-      setPurchases(prev => [...prev, { ...data, id: generateId(), createdAt: new Date().toISOString() }]);
-    }
+      let newPurchases: Purchase[];
+      if (editingId) {
+        newPurchases = c.purchases.map(p => p.id === editingId ? { ...p, ...data } : p);
+      } else {
+        newPurchases = [...c.purchases, { ...data, id: generateId(), createdAt: new Date().toISOString() }];
+      }
 
+      return { ...c, purchases: newPurchases, companies: newCompanies };
+    });
+
+    setEditingId(null);
     setFormData({ company: '', dueDate: '', amount: '', sector: sectors[0]?.name || '' });
   };
 
@@ -123,32 +147,25 @@ const ComprasApp: React.FC = () => {
     if (!confirmDelete.id) return;
     const id = confirmDelete.id;
     const type = confirmDelete.type;
-
-    if (type === 'nota') {
-      setPurchases(prev => prev.filter(p => p.id !== id));
-    } else if (type === 'setor') {
-      setSectors(prev => prev.filter(s => s.id !== id));
-    } else if (type === 'empresa') {
-      setRegisteredCompanies(prev => prev.filter(c => c.id !== id));
-    }
+    updateCycle(c => {
+      if (type === 'nota') return { ...c, purchases: c.purchases.filter(p => p.id !== id) };
+      if (type === 'setor') return { ...c, sectors: c.sectors.filter(s => s.id !== id) };
+      if (type === 'empresa') return { ...c, companies: c.companies.filter(co => co.id !== id) };
+      return c;
+    });
     setConfirmDelete({ show: false, id: null, type: 'nota', title: '' });
   };
 
   const handleSaveLimit = () => {
     const newLimit = parseFloat(tempLimit);
     if (isNaN(newLimit)) return;
-    setPurchaseLimit(newLimit);
+    updateCycle(c => ({ ...c, purchaseLimit: newLimit }));
     setIsEditingLimit(false);
   };
 
   const startEdit = (p: Purchase) => {
     setEditingId(p.id);
-    setFormData({
-      company: p.company,
-      dueDate: p.dueDate,
-      amount: String(p.amount),
-      sector: p.sector || sectors[0]?.name || "",
-    });
+    setFormData({ company: p.company, dueDate: p.dueDate, amount: String(p.amount), sector: p.sector || sectors[0]?.name || "" });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -161,7 +178,7 @@ const ComprasApp: React.FC = () => {
       const element = document.getElementById('report-container');
       const opt = {
         margin: 0,
-        filename: `Gestao_Compras_${new Date().getTime()}.pdf`,
+        filename: `${cycle?.name || 'Relatorio'}_${new Date().getTime()}.pdf`,
         image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { scale: 2.5, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
@@ -173,51 +190,61 @@ const ComprasApp: React.FC = () => {
   };
 
   const sortedPurchases = useMemo(() =>
-    [...purchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()),
-    [purchases]
+    [...filteredPurchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()),
+    [filteredPurchases]
   );
 
-  const totalSpent = useMemo(() => purchases.reduce((acc, curr) => acc + (curr.amount || 0), 0), [purchases]);
+  const totalSpent = useMemo(() => filteredPurchases.reduce((acc, curr) => acc + (curr.amount || 0), 0), [filteredPurchases]);
   const balance = purchaseLimit - totalSpent;
   const usagePercentage = purchaseLimit > 0 ? (totalSpent / purchaseLimit) * 100 : 0;
 
   const sectorTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     sectors.forEach(s => (totals[s.name] = 0));
-    purchases.forEach(p => {
-      if (totals[p.sector] !== undefined) totals[p.sector] += (p.amount || 0);
-    });
+    filteredPurchases.forEach(p => { if (totals[p.sector] !== undefined) totals[p.sector] += (p.amount || 0); });
     return totals;
-  }, [purchases, sectors]);
+  }, [filteredPurchases, sectors]);
 
   const topCompanies = useMemo(() => {
     const map: Record<string, number> = {};
-    purchases.forEach(p => { map[p.company] = (map[p.company] || 0) + (p.amount || 0); });
+    filteredPurchases.forEach(p => { map[p.company] = (map[p.company] || 0) + (p.amount || 0); });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, amount]) => ({ name, amount }));
-  }, [purchases]);
+  }, [filteredPurchases]);
 
   const totalsByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    purchases.forEach(p => { map[p.dueDate] = (map[p.dueDate] || 0) + (p.amount || 0); });
+    filteredPurchases.forEach(p => { map[p.dueDate] = (map[p.dueDate] || 0) + (p.amount || 0); });
     return Object.entries(map).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([date, amount]) => ({ date, amount }));
-  }, [purchases]);
+  }, [filteredPurchases]);
+
+  const hasActiveFilter = filterDateFrom || filterDateTo;
+
+  if (!cycle) return null;
 
   return (
     <div className={`min-h-screen bg-background text-foreground antialiased pb-24 md:pb-12 ${isPrintMode ? 'is-printing' : ''}`}>
-      {/* Navbar — Apple glass style */}
+      {/* Navbar */}
       <nav className="glass sticky top-0 z-50 border-b border-border/60 no-print">
-        <div className="max-w-5xl mx-auto px-5 py-3 md:px-8 md:py-4 flex items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto px-5 py-3 md:px-8 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="bg-foreground p-2 rounded-xl apple-shadow-md">
-              <Calculator className="w-4 h-4 text-background" />
+            <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-secondary transition-all active:scale-95">
+              <ArrowLeft className="w-5 h-5 text-foreground" />
+            </button>
+            <div>
+              <h1 className="text-sm md:text-base font-bold tracking-tight capitalize">{cycle.name}</h1>
             </div>
-            <h1 className="text-sm md:text-base font-bold tracking-tight">Gestor Gerencial</h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-card px-4 py-2 rounded-2xl border border-border/60 apple-shadow-sm flex flex-col items-end">
-              <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider leading-none">Saldo</span>
-              <span className={`text-sm font-bold leading-tight mt-0.5 ${balance < 0 ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(balance)}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFilter(!showFilter)}
+              className={`p-2.5 rounded-xl transition-all active:scale-95 ${hasActiveFilter ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+            <div className="bg-card px-3 py-1.5 rounded-2xl border border-border/60 apple-shadow-sm flex flex-col items-end">
+              <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider leading-none">Saldo</span>
+              <span className={`text-xs font-bold leading-tight mt-0.5 ${balance < 0 ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(balance)}</span>
             </div>
             <button
               onClick={handleGeneratePDF}
@@ -228,6 +255,39 @@ const ComprasApp: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Period Filter Panel */}
+        {showFilter && (
+          <div className="border-t border-border/40 px-5 py-3 md:px-8 animate-fade-in">
+            <div className="max-w-5xl mx-auto flex items-center gap-3 flex-wrap">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período:</span>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={e => setFilterDateFrom(e.target.value)}
+                className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all"
+                placeholder="De"
+              />
+              <span className="text-xs text-muted-foreground">até</span>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={e => setFilterDateTo(e.target.value)}
+                className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all"
+                placeholder="Até"
+              />
+              {hasActiveFilter && (
+                <button
+                  onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
+                  className="text-[9px] font-bold text-destructive bg-destructive/5 px-3 py-2 rounded-xl hover:bg-destructive/10 transition-all"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* --- PDF REPORT --- */}
@@ -236,7 +296,7 @@ const ComprasApp: React.FC = () => {
           <div className="flex items-center justify-between mb-4 border-b-2 border-primary pb-3">
             <div>
               <h2 className="text-lg font-bold text-foreground uppercase">Resumo de Compras Mensal</h2>
-              <p className="text-[8px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">Extraído em {new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-[8px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">Extraído em {new Date().toLocaleDateString('pt-BR')} — {cycle.name}</p>
             </div>
             <div className="bg-foreground p-3 rounded-2xl text-background flex items-center gap-2">
               <Calculator className="w-5 h-5" />
@@ -346,6 +406,17 @@ const ComprasApp: React.FC = () => {
             ))}
           </section>
 
+          {/* Active filter indicator */}
+          {hasActiveFilter && (
+            <div className="bg-primary/5 border border-primary/20 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
+              <Filter className="w-3.5 h-3.5 text-primary" />
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                Filtro ativo: {filterDateFrom ? new Date(filterDateFrom + 'T12:00:00').toLocaleDateString('pt-BR') : '...'} até {filterDateTo ? new Date(filterDateTo + 'T12:00:00').toLocaleDateString('pt-BR') : '...'}
+              </span>
+              <span className="text-[10px] text-muted-foreground ml-auto">({filteredPurchases.length} notas)</span>
+            </div>
+          )}
+
           {/* Form */}
           <section className={`bg-card p-5 md:p-8 rounded-2xl apple-shadow-md border-2 transition-all duration-300 animate-fade-in ${editingId ? 'border-warning/40 ring-4 ring-warning/5' : 'border-transparent'}`}>
             <div className="flex justify-between items-center mb-5 md:mb-6">
@@ -401,7 +472,7 @@ const ComprasApp: React.FC = () => {
             </form>
           </section>
 
-          {/* Desktop Tabs — Apple segmented control */}
+          {/* Desktop Tabs */}
           <div className="hidden md:flex bg-secondary/80 p-1 rounded-xl w-fit overflow-x-auto hide-scrollbar whitespace-nowrap">
             {[
               { key: 'dashboard', label: 'Painel', icon: BarChart3 },
@@ -413,9 +484,7 @@ const ComprasApp: React.FC = () => {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                  activeTab === tab.key
-                    ? 'bg-card text-foreground apple-shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  activeTab === tab.key ? 'bg-card text-foreground apple-shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <tab.icon className="w-3.5 h-3.5" /> {tab.label}
@@ -545,7 +614,6 @@ const ComprasApp: React.FC = () => {
           {activeTab === 'config' && (
             <div className="bg-card rounded-2xl apple-shadow-md min-h-[300px] animate-fade-in">
               <div className="p-5 md:p-8 space-y-8">
-                {/* Limit */}
                 <div className="bg-secondary/40 p-6 rounded-2xl">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-4 flex items-center gap-2">
                     <Wallet className="w-4 h-4" /> Limite de Compras
@@ -566,18 +634,16 @@ const ComprasApp: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Maintenance */}
                 <div className="bg-foreground p-6 rounded-2xl text-center">
                   <h3 className="text-primary font-bold uppercase text-[9px] mb-4 tracking-widest">Manutenção</h3>
                   <button
-                    onClick={() => { if (confirm("Deseja apagar TODOS os registos?")) setPurchases([]); }}
+                    onClick={() => { if (confirm("Deseja apagar TODOS os registos deste ciclo?")) updateCycle(c => ({ ...c, purchases: [] })); }}
                     className="bg-destructive text-destructive-foreground px-6 py-3 rounded-xl flex items-center justify-center gap-3 font-semibold uppercase text-[10px] transition-all active:scale-95 mx-auto apple-shadow-md"
                   >
                     <Trash2 className="w-4 h-4" /> Limpar Base
                   </button>
                 </div>
 
-                {/* Sectors Management */}
                 <div>
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-4 text-center">Departamentos</h3>
                   <div className="flex gap-3 mb-6">
@@ -615,7 +681,7 @@ const ComprasApp: React.FC = () => {
         </main>
       )}
 
-      {/* Mobile Bottom Navigation — iOS style */}
+      {/* Mobile Bottom Navigation */}
       {!isPrintMode && (
         <footer className="fixed bottom-0 left-0 right-0 glass border-t border-border/60 px-6 py-3 flex justify-around md:hidden z-50 rounded-t-3xl no-print">
           {[
@@ -659,7 +725,14 @@ const ComprasApp: React.FC = () => {
         </div>
       )}
 
-      {/* Print mode exit button */}
+      {/* Print mode exit — back arrow */}
+      {isPrintMode && (
+        <div className="fixed top-6 left-6 z-[100] no-print">
+          <button onClick={() => setIsPrintMode(false)} className="bg-foreground text-background p-3 rounded-full apple-shadow-xl active:scale-95 transition-all">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+      )}
       {isPrintMode && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] no-print">
           <button onClick={() => setIsPrintMode(false)} className="bg-foreground text-background px-8 py-4 rounded-full font-bold uppercase apple-shadow-xl flex items-center gap-3 border-4 border-primary active:scale-95 text-[10px] tracking-widest transition-all">

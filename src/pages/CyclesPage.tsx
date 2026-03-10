@@ -445,12 +445,20 @@ const CyclesPage: React.FC = () => {
                         <span className="text-[9px] text-muted-foreground font-medium">{cycle.purchases.length} notas</span>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, id: cycle.id, name: cycle.name }); }}
-                      className="p-2.5 text-muted-foreground hover:text-destructive rounded-xl hover:bg-destructive/5 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => openEditCycleModal(cycle, e)}
+                        className="p-2.5 text-muted-foreground hover:text-primary rounded-xl hover:bg-primary/5 transition-all"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, id: cycle.id, name: cycle.name }); }}
+                        className="p-2.5 text-muted-foreground hover:text-destructive rounded-xl hover:bg-destructive/5 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex gap-3 cursor-pointer" onClick={() => navigate(`/cycle/${cycle.id}`)}>
                     <div className="flex-1 bg-secondary/60 p-3 rounded-xl text-center">

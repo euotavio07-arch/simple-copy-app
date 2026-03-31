@@ -6,10 +6,8 @@ import {
   PieChart, Layers, List, BarChart3, Settings, TrendingUp,
   Printer, ChevronDown, EyeOff, Trophy, Clock, AlertCircle, Filter
 } from 'lucide-react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Cycle, Purchase, Company, Sector, FormData, DEFAULT_SECTORS } from '@/types/purchases';
-
-const generateId = () => Math.random().toString(36).substring(2, 15);
+import { useCycleData } from '@/hooks/useSupabaseData';
+import { FormData as PurchaseFormData } from '@/types/purchases';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -26,23 +24,21 @@ const getStatusInfo = (dateStr: string) => {
 const ComprasApp: React.FC = () => {
   const navigate = useNavigate();
   const { cycleId } = useParams<{ cycleId: string }>();
-  const [cycles, setCycles] = useLocalStorage<Cycle[]>('cycles', []);
+  const {
+    cycle, loading,
+    addPurchase, updatePurchase, deletePurchase, clearPurchases,
+    upsertCompany, deleteCompany,
+    addSector, updateSector, deleteSector,
+    updateLimit, refetch,
+  } = useCycleData(cycleId);
 
-  const cycle = useMemo(() => cycles.find(c => c.id === cycleId), [cycles, cycleId]);
-
-  // Redirect if cycle not found (with delay to avoid race condition)
+  // Redirect if cycle not found
   useEffect(() => {
-    if (cycles.length === 0) return; // still loading
-    if (!cycle) {
+    if (!loading && !cycle) {
       const timer = setTimeout(() => navigate('/'), 300);
       return () => clearTimeout(timer);
     }
-  }, [cycle, cycles, navigate]);
-
-  // Helpers to update current cycle
-  const updateCycle = useCallback((updater: (c: Cycle) => Cycle) => {
-    setCycles(prev => prev.map(c => c.id === cycleId ? updater(c) : c));
-  }, [setCycles, cycleId]);
+  }, [cycle, loading, navigate]);
 
   const purchases = cycle?.purchases || [];
   const registeredCompanies = cycle?.companies || [];
@@ -59,17 +55,23 @@ const ComprasApp: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; type: string; title: string }>({ show: false, id: null, type: 'nota', title: '' });
 
-  // Period filter - initialized empty (no auto filter)
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [showFilter, setShowFilter] = useState(false);
 
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<PurchaseFormData>({
     company: '',
     dueDate: '',
     amount: '',
-    sector: sectors[0]?.name || '',
+    sector: '',
   });
+
+  // Set default sector when sectors load
+  useEffect(() => {
+    if (sectors.length > 0 && !formData.sector) {
+      setFormData(prev => ({ ...prev, sector: sectors[0]?.name || '' }));
+    }
+  }, [sectors]);
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -79,97 +81,88 @@ const ComprasApp: React.FC = () => {
     return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // Filtered purchases by period
   const filteredPurchases = useMemo(() => {
     let filtered = purchases;
     if (filterDateFrom) {
-      filtered = filtered.filter(p => p.dueDate >= filterDateFrom);
+      filtered = filtered.filter((p: any) => (p.dueDate || p.due_date) >= filterDateFrom);
     }
     if (filterDateTo) {
-      filtered = filtered.filter(p => p.dueDate <= filterDateTo);
+      filtered = filtered.filter((p: any) => (p.dueDate || p.due_date) <= filterDateTo);
     }
     return filtered;
   }, [purchases, filterDateFrom, filterDateTo]);
 
   const handleCompanyChange = useCallback((companyName: string) => {
     setFormData(prev => {
-      const matched = registeredCompanies.find(c => c.name.toLowerCase() === companyName.trim().toLowerCase());
-      return { ...prev, company: companyName, ...(matched?.lastSector && !editingId ? { sector: matched.lastSector } : {}) };
+      const matched = registeredCompanies.find((c: any) => (c.name || '').toLowerCase() === companyName.trim().toLowerCase());
+      const lastSector = matched ? (matched.last_sector || (matched as any).lastSector) : null;
+      return { ...prev, company: companyName, ...(lastSector && !editingId ? { sector: lastSector } : {}) };
     });
   }, [registeredCompanies, editingId]);
 
-  const companyNames = useMemo(() => registeredCompanies.map(c => c.name).sort(), [registeredCompanies]);
+  const companyNames = useMemo(() => registeredCompanies.map((c: any) => c.name).sort(), [registeredCompanies]);
 
-  const handleAddSector = () => {
+  const handleAddSector = async () => {
     if (!newSectorName.trim()) return;
     if (editingSectorId) {
-      updateCycle(c => ({ ...c, sectors: c.sectors.map(s => s.id === editingSectorId ? { ...s, name: newSectorName.trim() } : s) }));
+      await updateSector(editingSectorId, newSectorName.trim());
       setEditingSectorId(null);
     } else {
-      updateCycle(c => ({ ...c, sectors: [...c.sectors, { id: generateId(), name: newSectorName.trim() }].sort((a, b) => a.name.localeCompare(b.name)) }));
+      await addSector(newSectorName.trim());
     }
     setNewSectorName("");
   };
 
-  const handleSave = (e: FormEvent) => {
+  const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!formData.company || !formData.dueDate) return;
     const companyNameTrimmed = formData.company.trim().toUpperCase();
+    const sectorName = formData.sector || sectors[0]?.name || "Geral";
 
-    updateCycle(c => {
-      let newCompanies = [...c.companies];
-      const existing = newCompanies.find(co => co.name.toLowerCase() === companyNameTrimmed.toLowerCase());
-      if (!existing) {
-        newCompanies.push({ id: generateId(), name: companyNameTrimmed, lastSector: formData.sector, createdAt: new Date().toISOString() });
-      } else if (existing.lastSector !== formData.sector) {
-        newCompanies = newCompanies.map(co => co.id === existing.id ? { ...co, lastSector: formData.sector } : co);
-      }
-
-      const data = {
+    if (editingId) {
+      await updatePurchase(editingId, {
         company: companyNameTrimmed,
         dueDate: formData.dueDate,
         amount: parseFloat(formData.amount) || 0,
-        sector: formData.sector || c.sectors[0]?.name || "Geral",
-        updatedAt: new Date().toISOString(),
-      };
+        sector: sectorName,
+      });
+    } else {
+      await addPurchase({
+        company: companyNameTrimmed,
+        dueDate: formData.dueDate,
+        amount: parseFloat(formData.amount) || 0,
+        sector: sectorName,
+      });
+    }
 
-      let newPurchases: Purchase[];
-      if (editingId) {
-        newPurchases = c.purchases.map(p => p.id === editingId ? { ...p, ...data } : p);
-      } else {
-        newPurchases = [...c.purchases, { ...data, id: generateId(), createdAt: new Date().toISOString() }];
-      }
-
-      return { ...c, purchases: newPurchases, companies: newCompanies };
-    });
+    // Upsert company
+    await upsertCompany(companyNameTrimmed, sectorName);
+    await refetch();
 
     setEditingId(null);
     setFormData({ company: '', dueDate: '', amount: '', sector: sectors[0]?.name || '' });
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (!confirmDelete.id) return;
     const id = confirmDelete.id;
     const type = confirmDelete.type;
-    updateCycle(c => {
-      if (type === 'nota') return { ...c, purchases: c.purchases.filter(p => p.id !== id) };
-      if (type === 'setor') return { ...c, sectors: c.sectors.filter(s => s.id !== id) };
-      if (type === 'empresa') return { ...c, companies: c.companies.filter(co => co.id !== id) };
-      return c;
-    });
+    if (type === 'nota') await deletePurchase(id);
+    else if (type === 'setor') await deleteSector(id);
+    else if (type === 'empresa') await deleteCompany(id);
     setConfirmDelete({ show: false, id: null, type: 'nota', title: '' });
   };
 
-  const handleSaveLimit = () => {
+  const handleSaveLimit = async () => {
     const newLimit = parseFloat(tempLimit);
     if (isNaN(newLimit)) return;
-    updateCycle(c => ({ ...c, purchaseLimit: newLimit }));
+    await updateLimit(newLimit);
     setIsEditingLimit(false);
   };
 
-  const startEdit = (p: Purchase) => {
+  const startEdit = (p: any) => {
     setEditingId(p.id);
-    setFormData({ company: p.company, dueDate: p.dueDate, amount: String(p.amount), sector: p.sector || sectors[0]?.name || "" });
+    setFormData({ company: p.company, dueDate: p.dueDate || p.due_date, amount: String(p.amount), sector: p.sector || sectors[0]?.name || "" });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -195,34 +188,42 @@ const ComprasApp: React.FC = () => {
   };
 
   const sortedPurchases = useMemo(() =>
-    [...filteredPurchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()),
+    [...filteredPurchases].sort((a: any, b: any) => new Date(a.dueDate || a.due_date).getTime() - new Date(b.dueDate || b.due_date).getTime()),
     [filteredPurchases]
   );
 
-  const totalSpent = useMemo(() => filteredPurchases.reduce((acc, curr) => acc + (curr.amount || 0), 0), [filteredPurchases]);
+  const totalSpent = useMemo(() => filteredPurchases.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0), [filteredPurchases]);
   const balance = purchaseLimit - totalSpent;
   const usagePercentage = purchaseLimit > 0 ? (totalSpent / purchaseLimit) * 100 : 0;
 
   const sectorTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    sectors.forEach(s => (totals[s.name] = 0));
-    filteredPurchases.forEach(p => { if (totals[p.sector] !== undefined) totals[p.sector] += (p.amount || 0); });
+    sectors.forEach((s: any) => (totals[s.name] = 0));
+    filteredPurchases.forEach((p: any) => { if (totals[p.sector] !== undefined) totals[p.sector] += (p.amount || 0); });
     return totals;
   }, [filteredPurchases, sectors]);
 
   const topCompanies = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredPurchases.forEach(p => { map[p.company] = (map[p.company] || 0) + (p.amount || 0); });
+    filteredPurchases.forEach((p: any) => { map[p.company] = (map[p.company] || 0) + (p.amount || 0); });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, amount]) => ({ name, amount }));
   }, [filteredPurchases]);
 
   const totalsByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredPurchases.forEach(p => { map[p.dueDate] = (map[p.dueDate] || 0) + (p.amount || 0); });
+    filteredPurchases.forEach((p: any) => { const d = p.dueDate || p.due_date; map[d] = (map[d] || 0) + (p.amount || 0); });
     return Object.entries(map).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([date, amount]) => ({ date, amount }));
   }, [filteredPurchases]);
 
   const hasActiveFilter = filterDateFrom || filterDateTo;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!cycle) return null;
 
@@ -272,28 +273,11 @@ const ComprasApp: React.FC = () => {
             <div className="max-w-5xl mx-auto flex items-center gap-3 flex-wrap">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Período:</span>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={e => setFilterDateFrom(e.target.value)}
-                className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all"
-                placeholder="De"
-              />
+              <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all" />
               <span className="text-xs text-muted-foreground">até</span>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={e => setFilterDateTo(e.target.value)}
-                className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all"
-                placeholder="Até"
-              />
+              <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="px-3 py-2 bg-secondary/60 border border-border/60 rounded-xl text-xs font-medium outline-none focus:border-primary transition-all" />
               {hasActiveFilter && (
-                <button
-                  onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
-                  className="text-[9px] font-bold text-destructive bg-destructive/5 px-3 py-2 rounded-xl hover:bg-destructive/10 transition-all"
-                >
-                  Limpar
-                </button>
+                <button onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }} className="text-[9px] font-bold text-destructive bg-destructive/5 px-3 py-2 rounded-xl hover:bg-destructive/10 transition-all">Limpar</button>
               )}
             </div>
           </div>
@@ -356,7 +340,7 @@ const ComprasApp: React.FC = () => {
               ))}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {sectors.slice(0, 10).map(s => (
+              {sectors.slice(0, 10).map((s: any) => (
                 <div key={s.id} className="bg-card p-2 rounded-xl border border-border text-center flex flex-col justify-center">
                   <h4 className="text-[6px] font-bold text-muted-foreground uppercase truncate mb-0.5">{s.name}</h4>
                   <p className="text-[8px] font-bold text-foreground leading-none">{formatCurrency(sectorTotals[s.name] || 0)}</p>
@@ -372,19 +356,20 @@ const ComprasApp: React.FC = () => {
             <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Notas Cadastradas por Dia</div>
             <table className="w-full text-left border-collapse">
               {(() => {
-                const grouped: Record<string, typeof sortedPurchases> = {};
-                filteredPurchases.forEach(p => {
-                  const dateKey = p.createdAt ? p.createdAt.split('T')[0] : 'sem-data';
+                const grouped: Record<string, any[]> = {};
+                filteredPurchases.forEach((p: any) => {
+                  const ca = p.createdAt || p.created_at || '';
+                  const dateKey = ca ? ca.split('T')[0] : 'sem-data';
                   if (!grouped[dateKey]) grouped[dateKey] = [];
                   grouped[dateKey].push(p);
                 });
                 const sortedDates = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-                const grandTotal = filteredPurchases.reduce((a, p) => a + (p.amount || 0), 0);
+                const grandTotal = filteredPurchases.reduce((a: number, p: any) => a + (p.amount || 0), 0);
                 return (
                   <tbody>
                     {sortedDates.map(dateKey => {
                       const notes = grouped[dateKey];
-                      const subtotal = notes.reduce((a, p) => a + (p.amount || 0), 0);
+                      const subtotal = notes.reduce((a: number, p: any) => a + (p.amount || 0), 0);
                       const dateLabel = dateKey === 'sem-data' ? 'Sem data' : new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                       return (
                         <React.Fragment key={dateKey}>
@@ -396,10 +381,10 @@ const ComprasApp: React.FC = () => {
                             <th className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase text-center">Vencimento</th>
                             <th className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase text-right">Valor</th>
                           </tr>
-                          {notes.map(p => (
+                          {notes.map((p: any) => (
                             <tr key={p.id} className="border-b border-border/40">
                               <td className="px-6 py-1.5 font-semibold text-foreground uppercase text-[8px]">{p.company}</td>
-                              <td className="px-6 py-1.5 text-[8px] text-muted-foreground text-center">{new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
+                              <td className="px-6 py-1.5 text-[8px] text-muted-foreground text-center">{new Date(p.dueDate || p.due_date).toLocaleDateString('pt-BR')}</td>
                               <td className="px-6 py-1.5 text-right font-bold text-foreground text-[8px]">{formatCurrency(p.amount)}</td>
                             </tr>
                           ))}
@@ -444,7 +429,6 @@ const ComprasApp: React.FC = () => {
             ))}
           </section>
 
-          {/* Active filter indicator */}
           {hasActiveFilter && (
             <div className="bg-primary/5 border border-primary/20 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
               <Filter className="w-3.5 h-3.5 text-primary" />
@@ -475,7 +459,7 @@ const ComprasApp: React.FC = () => {
                 <div className="relative">
                   <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                   <input type="text" list="companies-list" placeholder="Empresa..." className="w-full pl-10 pr-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary focus:bg-card rounded-xl outline-none text-sm font-medium transition-all placeholder:text-muted-foreground/40" value={formData.company} onChange={(e) => handleCompanyChange(e.target.value)} required />
-                  <datalist id="companies-list">{companyNames.map(name => <option key={name} value={name} />)}</datalist>
+                  <datalist id="companies-list">{companyNames.map((name: string) => <option key={name} value={name} />)}</datalist>
                 </div>
               </div>
 
@@ -485,7 +469,7 @@ const ComprasApp: React.FC = () => {
                   <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                   <select className="w-full pl-10 pr-8 py-3 bg-secondary/60 border border-border/60 focus:border-primary focus:bg-card rounded-xl outline-none text-sm font-medium appearance-none transition-all" value={formData.sector} onChange={(e) => setFormData({ ...formData, sector: e.target.value })} required>
                     <option value="" disabled>Setor...</option>
-                    {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    {sectors.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
                   <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 pointer-events-none" />
                 </div>
@@ -597,8 +581,8 @@ const ComprasApp: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {sortedPurchases.map((p) => {
-                      const status = getStatusInfo(p.dueDate);
+                    {sortedPurchases.map((p: any) => {
+                      const status = getStatusInfo(p.dueDate || p.due_date);
                       return (
                         <tr key={p.id} className="group hover:bg-secondary/40 transition-colors duration-150">
                           <td className="px-5 py-4 md:px-6">
@@ -636,7 +620,7 @@ const ComprasApp: React.FC = () => {
           {/* Tab: Sectors */}
           {activeTab === 'sectors' && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
-              {sectors.map(s => (
+              {sectors.map((s: any) => (
                 <div key={s.id} className="bg-card p-5 md:p-6 rounded-2xl apple-shadow-sm text-center hover:scale-[1.02] transition-all border border-border/40">
                   <h4 className="text-[9px] font-medium text-muted-foreground uppercase mb-2 truncate">{s.name}</h4>
                   <p className="text-base md:text-xl font-bold text-foreground">{formatCurrency(sectorTotals[s.name] || 0)}</p>
@@ -675,7 +659,7 @@ const ComprasApp: React.FC = () => {
                 <div className="bg-foreground p-6 rounded-2xl text-center">
                   <h3 className="text-primary font-bold uppercase text-[9px] mb-4 tracking-widest">Manutenção</h3>
                   <button
-                    onClick={() => { if (confirm("Deseja apagar TODOS os registos deste ciclo?")) updateCycle(c => ({ ...c, purchases: [] })); }}
+                    onClick={async () => { if (confirm("Deseja apagar TODOS os registos deste ciclo?")) await clearPurchases(); }}
                     className="bg-destructive text-destructive-foreground px-6 py-3 rounded-xl flex items-center justify-center gap-3 font-semibold uppercase text-[10px] transition-all active:scale-95 mx-auto apple-shadow-md"
                   >
                     <Trash2 className="w-4 h-4" /> Limpar Base
@@ -689,7 +673,7 @@ const ComprasApp: React.FC = () => {
                     <button onClick={handleAddSector} className="bg-foreground text-background px-6 py-3 rounded-xl text-sm font-semibold hover:opacity-90 active:scale-[0.97] transition-all">OK</button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {sectors.map(s => (
+                    {sectors.map((s: any) => (
                       <div key={s.id} className="bg-secondary/40 px-4 py-3.5 rounded-xl flex items-center justify-between group transition-colors hover:bg-secondary/70">
                         <span className="text-sm font-medium text-foreground truncate pr-3">{s.name}</span>
                         <div className="flex items-center gap-0.5">
@@ -752,18 +736,14 @@ const ComprasApp: React.FC = () => {
               Confirma a remoção de: <br /><span className="text-destructive font-bold">"{confirmDelete.title}"</span>?
             </p>
             <div className="flex flex-col gap-3">
-              <button onClick={executeDelete} className="w-full bg-destructive text-destructive-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all">
-                Eliminar Agora
-              </button>
-              <button onClick={() => setConfirmDelete({ show: false, id: null, type: 'nota', title: '' })} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">
-                Cancelar
-              </button>
+              <button onClick={executeDelete} className="w-full bg-destructive text-destructive-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all">Eliminar Agora</button>
+              <button onClick={() => setConfirmDelete({ show: false, id: null, type: 'nota', title: '' })} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Print mode exit — back arrow */}
+      {/* Print mode exit */}
       {isPrintMode && (
         <div className="fixed top-6 left-6 z-[100] no-print">
           <button onClick={() => setIsPrintMode(false)} className="bg-foreground text-background p-3 rounded-full apple-shadow-xl active:scale-95 transition-all">
@@ -773,8 +753,9 @@ const ComprasApp: React.FC = () => {
       )}
       {isPrintMode && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] no-print">
-          <button onClick={() => setIsPrintMode(false)} className="bg-foreground text-background px-8 py-4 rounded-full font-bold uppercase apple-shadow-xl flex items-center gap-3 border-4 border-primary active:scale-95 text-[10px] tracking-widest transition-all">
-            <EyeOff className="w-5 h-5" /> Sair da Visualização
+          <button onClick={handleGeneratePDF} disabled={isGeneratingPDF} className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-semibold text-xs uppercase tracking-wider apple-shadow-xl flex items-center gap-2 active:scale-95 transition-all">
+            {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            Baixar PDF
           </button>
         </div>
       )}

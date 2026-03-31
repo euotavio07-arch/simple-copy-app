@@ -340,7 +340,7 @@ const ComprasApp: React.FC = () => {
               })}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="bg-card p-4 rounded-2xl">
               <h3 className="text-[8px] font-bold text-muted-foreground uppercase mb-3 text-center border-b border-border pb-1.5">Top 10 Fornecedores</h3>
               {topCompanies.map((item, idx) => (
@@ -367,28 +367,56 @@ const ComprasApp: React.FC = () => {
           </div>
         </div>
         <div className="p-6">
-          <div className="bg-card rounded-2xl overflow-hidden border border-border">
-            <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Cronograma Cronológico de Notas</div>
+          {/* Grouped by createdAt table */}
+          <div className="bg-card rounded-2xl overflow-hidden border border-border mb-4">
+            <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Notas Cadastradas por Dia</div>
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-card text-[7px] font-bold text-muted-foreground uppercase border-b border-border tracking-widest">
-                  <th className="px-6 py-2.5">Fornecedor</th>
-                  <th className="px-6 py-2.5">Status / Data</th>
-                  <th className="px-6 py-2.5 text-right">Valor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {sortedPurchases.map((p) => {
-                  const status = getStatusInfo(p.dueDate);
-                  return (
-                    <tr key={p.id}>
-                      <td className="px-6 py-2 font-semibold text-foreground uppercase text-[8px]">{p.company}</td>
-                      <td className={`px-6 py-2 font-bold text-[8px] ${status.color}`}>{status.label.toUpperCase()} - {new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
-                      <td className="px-6 py-2 text-right font-bold text-foreground text-[8px]">{formatCurrency(p.amount)}</td>
+              {(() => {
+                const grouped: Record<string, typeof sortedPurchases> = {};
+                filteredPurchases.forEach(p => {
+                  const dateKey = p.createdAt ? p.createdAt.split('T')[0] : 'sem-data';
+                  if (!grouped[dateKey]) grouped[dateKey] = [];
+                  grouped[dateKey].push(p);
+                });
+                const sortedDates = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+                const grandTotal = filteredPurchases.reduce((a, p) => a + (p.amount || 0), 0);
+                return (
+                  <tbody>
+                    {sortedDates.map(dateKey => {
+                      const notes = grouped[dateKey];
+                      const subtotal = notes.reduce((a, p) => a + (p.amount || 0), 0);
+                      const dateLabel = dateKey === 'sem-data' ? 'Sem data' : new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                      return (
+                        <React.Fragment key={dateKey}>
+                          <tr className="bg-secondary">
+                            <td colSpan={3} className="px-6 py-2 text-[8px] font-extrabold uppercase text-foreground">{dateLabel}</td>
+                          </tr>
+                          <tr className="border-b border-border">
+                            <th className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase">Empresa</th>
+                            <th className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase text-center">Vencimento</th>
+                            <th className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase text-right">Valor</th>
+                          </tr>
+                          {notes.map(p => (
+                            <tr key={p.id} className="border-b border-border/40">
+                              <td className="px-6 py-1.5 font-semibold text-foreground uppercase text-[8px]">{p.company}</td>
+                              <td className="px-6 py-1.5 text-[8px] text-muted-foreground text-center">{new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
+                              <td className="px-6 py-1.5 text-right font-bold text-foreground text-[8px]">{formatCurrency(p.amount)}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-secondary/60 border-b-2 border-border">
+                            <td colSpan={2} className="px-6 py-1.5 text-[7px] font-bold text-muted-foreground uppercase">Subtotal do dia</td>
+                            <td className="px-6 py-1.5 text-right font-extrabold text-foreground text-[9px]">{formatCurrency(subtotal)}</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                    <tr className="bg-foreground text-background">
+                      <td colSpan={2} className="px-6 py-2.5 text-[8px] font-extrabold uppercase">Total Geral</td>
+                      <td className="px-6 py-2.5 text-right font-extrabold text-[10px]">{formatCurrency(grandTotal)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
+                  </tbody>
+                );
+              })()}
             </table>
           </div>
         </div>

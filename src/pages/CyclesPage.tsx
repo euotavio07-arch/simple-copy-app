@@ -659,30 +659,76 @@ const CyclesPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mb-8 leading-relaxed font-medium">
               Escolha o tipo de relatório que deseja gerar:
             </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={handleGenerateConsolidatedPDF}
-                disabled={isGeneratingPDF}
-                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
-                Consolidado (todos somados)
-              </button>
-              <button
-                onClick={handleGenerateIndividualPDF}
-                disabled={isGeneratingPDF}
-                className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Individual (cada ciclo)
-              </button>
-              <button
-                onClick={() => setShowPDFModal(false)}
-                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
-              >
-                Cancelar
-              </button>
-            </div>
+
+            {!showCustomPeriodStep ? (
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleGenerateConsolidatedPDF}
+                  disabled={isGeneratingPDF}
+                  className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+                  Relatório de Todos os Ciclos
+                </button>
+                <button
+                  onClick={() => setShowCustomPeriodStep(true)}
+                  className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Relatório Personalizado
+                </button>
+                <button
+                  onClick={() => setShowPDFModal(false)}
+                  className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 text-left">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-center">Selecione o período (data de cadastro)</p>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                    <Calendar className="w-3 h-3 inline mr-1" />
+                    Data Início
+                  </label>
+                  <input
+                    type="date"
+                    value={customPeriodFrom}
+                    onChange={e => setCustomPeriodFrom(e.target.value)}
+                    className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                    <Calendar className="w-3 h-3 inline mr-1" />
+                    Data Fim
+                  </label>
+                  <input
+                    type="date"
+                    value={customPeriodTo}
+                    onChange={e => setCustomPeriodTo(e.target.value)}
+                    className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  />
+                </div>
+                <div className="flex flex-col gap-3 mt-6">
+                  <button
+                    onClick={handleGenerateCustomPeriodPDF}
+                    disabled={isGeneratingPDF || !customPeriodFrom || !customPeriodTo}
+                    className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                  >
+                    {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                    Baixar PDF
+                  </button>
+                  <button
+                    onClick={() => setShowCustomPeriodStep(false)}
+                    className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

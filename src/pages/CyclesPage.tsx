@@ -31,6 +31,9 @@ const CyclesPage: React.FC = () => {
 
   // PDF options modal
   const [showPDFModal, setShowPDFModal] = useState(false);
+  const [showCustomPDFModal, setShowCustomPDFModal] = useState(false);
+  const [customPDFFrom, setCustomPDFFrom] = useState('');
+  const [customPDFTo, setCustomPDFTo] = useState('');
 
   // Editable app name
   const [appName, setAppName] = useLocalStorage<string>('appName', 'Gestor Gerencial');

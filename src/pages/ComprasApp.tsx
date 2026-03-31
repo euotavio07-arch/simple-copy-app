@@ -340,7 +340,7 @@ const ComprasApp: React.FC = () => {
               })}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="bg-card p-4 rounded-2xl">
               <h3 className="text-[8px] font-bold text-muted-foreground uppercase mb-3 text-center border-b border-border pb-1.5">Top 10 Fornecedores</h3>
               {topCompanies.map((item, idx) => (
@@ -355,8 +355,8 @@ const ComprasApp: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {sectors.slice(0, 10).map(s => (
+            <div className="grid grid-cols-3 gap-2">
+              {sectors.slice(0, 12).map(s => (
                 <div key={s.id} className="bg-card p-2 rounded-xl border border-border text-center flex flex-col justify-center">
                   <h4 className="text-[6px] font-bold text-muted-foreground uppercase truncate mb-0.5">{s.name}</h4>
                   <p className="text-[8px] font-bold text-foreground leading-none">{formatCurrency(sectorTotals[s.name] || 0)}</p>
@@ -366,7 +366,56 @@ const ComprasApp: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-6" style={{ pageBreakBefore: 'always' }}>
+          {/* Daily notes table */}
+          <div className="bg-card rounded-2xl overflow-hidden border border-border mb-5">
+            <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Notas Cadastradas por Dia</div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-card text-[7px] font-bold text-muted-foreground uppercase border-b border-border tracking-widest">
+                  <th className="px-6 py-2.5">Empresa</th>
+                  <th className="px-6 py-2.5 text-center">Vencimento</th>
+                  <th className="px-6 py-2.5 text-right">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {(() => {
+                  const dailyMap: Record<string, typeof sortedPurchases> = {};
+                  sortedPurchases.forEach(p => {
+                    if (!dailyMap[p.dueDate]) dailyMap[p.dueDate] = [];
+                    dailyMap[p.dueDate].push(p);
+                  });
+                  const dailyEntries = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+                  return dailyEntries.map(([date, items]) => {
+                    const dayTotal = items.reduce((a, p) => a + (p.amount || 0), 0);
+                    return (
+                      <React.Fragment key={date}>
+                        <tr className="bg-secondary/80">
+                          <td colSpan={2} className="px-6 py-2 font-extrabold text-foreground uppercase text-[8px]">
+                            {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </td>
+                          <td className="px-6 py-2 text-right font-extrabold text-primary text-[8px]">{formatCurrency(dayTotal)}</td>
+                        </tr>
+                        {items.map(p => (
+                          <tr key={p.id}>
+                            <td className="px-6 py-1.5 font-semibold text-foreground uppercase text-[8px]">{p.company}</td>
+                            <td className="px-6 py-1.5 text-center text-muted-foreground text-[8px]">{new Date(p.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                            <td className="px-6 py-1.5 text-right font-bold text-foreground text-[8px]">{formatCurrency(p.amount)}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+                <tr className="border-t-2 border-primary bg-secondary">
+                  <td colSpan={2} className="px-6 py-2.5 font-extrabold text-foreground uppercase text-[9px]">Total Geral</td>
+                  <td className="px-6 py-2.5 text-right font-extrabold text-primary text-[10px]">{formatCurrency(totalSpent)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Original chronological table */}
           <div className="bg-card rounded-2xl overflow-hidden border border-border">
             <div className="px-6 py-3 bg-secondary border-b border-border text-center uppercase tracking-widest text-[8px] font-bold">Cronograma Cronológico de Notas</div>
             <table className="w-full text-left border-collapse">

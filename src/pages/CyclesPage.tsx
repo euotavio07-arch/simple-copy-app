@@ -31,6 +31,9 @@ const CyclesPage: React.FC = () => {
 
   // PDF options modal
   const [showPDFModal, setShowPDFModal] = useState(false);
+  const [showCustomPDFModal, setShowCustomPDFModal] = useState(false);
+  const [customPDFFrom, setCustomPDFFrom] = useState('');
+  const [customPDFTo, setCustomPDFTo] = useState('');
 
   // Editable app name
   const [appName, setAppName] = useLocalStorage<string>('appName', 'Gestor Gerencial');
@@ -276,58 +279,75 @@ const CyclesPage: React.FC = () => {
           }).join('')}
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div style="background: #fafafa; padding: 14px; border-radius: 14px;">
-            <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
-            ${topCompanies.map((item, idx) => `
-              <div style="margin-bottom: 5px;">
-                <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
-                  <span>${idx + 1}. ${item.name}</span>
-                  <span>${formatCurrency(item.amount)}</span>
-                </div>
-                <div style="width: 100%; background: #e5e5e5; height: 4px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
-                  <div style="height: 100%; background: #1c1c1c; border-radius: 999px; width: ${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%;"></div>
-                </div>
+        <div style="background: #fafafa; padding: 14px; border-radius: 14px; margin-bottom: 16px;">
+          <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
+          ${topCompanies.map((item, idx) => `
+            <div style="margin-bottom: 5px;">
+              <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
+                <span>${idx + 1}. ${item.name}</span>
+                <span>${formatCurrency(item.amount)}</span>
               </div>
-            `).join('')}
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            ${sectorEntries.slice(0, 10).map(([name, amount]) => `
-              <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
-                <h4 style="font-size: 6px; font-weight: 700; color: #999; text-transform: uppercase; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</h4>
-                <p style="font-size: 8px; font-weight: 700; margin: 0;">${formatCurrency(amount)}</p>
-                <p style="font-size: 6px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.1); padding: 2px; border-radius: 999px; margin: 4px 0 0 0;">${totalSpent > 0 ? (amount / totalSpent * 100).toFixed(1) : 0}%</p>
+              <div style="width: 100%; background: #e5e5e5; height: 4px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
+                <div style="height: 100%; background: #1c1c1c; border-radius: 999px; width: ${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%;"></div>
               </div>
-            `).join('')}
-          </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          ${sectorEntries.slice(0, 10).map(([name, amount]) => `
+            <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
+              <h4 style="font-size: 6px; font-weight: 700; color: #999; text-transform: uppercase; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</h4>
+              <p style="font-size: 8px; font-weight: 700; margin: 0;">${formatCurrency(amount)}</p>
+              <p style="font-size: 6px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.1); padding: 2px; border-radius: 999px; margin: 4px 0 0 0;">${totalSpent > 0 ? (amount / totalSpent * 100).toFixed(1) : 0}%</p>
+            </div>
+          `).join('')}
         </div>
       </div>
     `;
 
-    // Page 2 - All purchases table
+    // Page 2 - Daily table + all purchases
     const allSorted = [...allPurchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const dailyMap: Record<string, typeof allPurchases> = {};
+    allPurchases.forEach(p => {
+      if (!dailyMap[p.dueDate]) dailyMap[p.dueDate] = [];
+      dailyMap[p.dueDate].push(p);
+    });
+    const dailyEntries = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
     let page2 = `
       <div style="padding: 24px;">
-        <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5;">
-          <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Cronograma Consolidado</div>
+        <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5; margin-bottom: 20px;">
+          <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Notas Cadastradas por Dia</div>
           <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
             <thead>
               <tr style="border-bottom: 1px solid #e5e5e5;">
-                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Fornecedor</th>
-                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Setor</th>
+                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Empresa</th>
                 <th style="text-align: center; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Vencimento</th>
                 <th style="text-align: right; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Valor</th>
               </tr>
             </thead>
             <tbody>
-              ${allSorted.map(p => `
-                <tr style="border-bottom: 1px solid #f0f0f0;">
-                  <td style="padding: 5px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
-                  <td style="padding: 5px 12px; color: #666;">${p.sector}</td>
-                  <td style="padding: 5px 12px; text-align: center; color: ${getStatusInfo(p.dueDate).color === 'text-destructive' ? '#dc2626' : getStatusInfo(p.dueDate).color === 'text-warning' ? '#d97706' : '#16a34a'};">${new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
-                  <td style="padding: 5px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
-                </tr>
-              `).join('')}
+              ${dailyEntries.map(([date, items]) => {
+                const dayTotal = items.reduce((a, p) => a + (p.amount || 0), 0);
+                return `
+                  <tr style="background: #f0f0f0; border-bottom: 1px solid #e5e5e5;">
+                    <td colspan="2" style="padding: 6px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #333;">${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                    <td style="padding: 6px 12px; text-align: right; font-size: 8px; font-weight: 800; color: #007AFF;">${formatCurrency(dayTotal)}</td>
+                  </tr>
+                  ${items.map(p => `
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                      <td style="padding: 5px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
+                      <td style="padding: 5px 12px; text-align: center; color: #666;">${new Date(p.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                      <td style="padding: 5px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
+                    </tr>
+                  `).join('')}
+                `;
+              }).join('')}
+              <tr style="border-top: 2px solid #007AFF; background: #f5f5f7;">
+                <td colspan="2" style="padding: 8px 12px; font-size: 9px; font-weight: 800; text-transform: uppercase;">Total Geral</td>
+                <td style="padding: 8px 12px; text-align: right; font-size: 10px; font-weight: 800; color: #007AFF;">${formatCurrency(totalSpent)}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -339,6 +359,165 @@ const CyclesPage: React.FC = () => {
     const opt = {
       margin: 0,
       filename: `Relatorio_Consolidado_${new Date().getTime()}.pdf`,
+      image: { type: 'jpeg', quality: 1.0 },
+      html2canvas: { scale: 2.5, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+    await html2pdf().set(opt).from(container).save();
+    document.body.removeChild(container);
+    setIsGeneratingPDF(false);
+  };
+
+  // PDF personalizado — filtered by custom date range across all cycles
+  const handleGenerateCustomPDF = async () => {
+    const html2pdf = (window as any).html2pdf;
+    if (!html2pdf || cycles.length === 0) return;
+    setIsGeneratingPDF(true);
+    setShowCustomPDFModal(false);
+
+    const allPurchases = cycles.flatMap(c => c.purchases).filter(p => {
+      if (customPDFFrom && p.dueDate < customPDFFrom) return false;
+      if (customPDFTo && p.dueDate > customPDFTo) return false;
+      return true;
+    });
+
+    const totalSpent = allPurchases.reduce((a, p) => a + (p.amount || 0), 0);
+    const periodLabel = `${new Date(customPDFFrom + 'T12:00:00').toLocaleDateString('pt-BR')} — ${new Date(customPDFTo + 'T12:00:00').toLocaleDateString('pt-BR')}`;
+
+    // Totals by date
+    const dateMap: Record<string, number> = {};
+    allPurchases.forEach(p => { dateMap[p.dueDate] = (dateMap[p.dueDate] || 0) + (p.amount || 0); });
+    const totalsByDate = Object.entries(dateMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([date, amount]) => ({ date, amount }));
+
+    // Top companies
+    const compMap: Record<string, number> = {};
+    allPurchases.forEach(p => { compMap[p.company] = (compMap[p.company] || 0) + (p.amount || 0); });
+    const topCompanies = Object.entries(compMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, amount]) => ({ name, amount }));
+
+    // Sector totals
+    const sectorMap: Record<string, number> = {};
+    allPurchases.forEach(p => { sectorMap[p.sector] = (sectorMap[p.sector] || 0) + (p.amount || 0); });
+    const sectorEntries = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
+
+    // Group by date for daily table
+    const dailyMap: Record<string, typeof allPurchases> = {};
+    allPurchases.forEach(p => {
+      if (!dailyMap[p.dueDate]) dailyMap[p.dueDate] = [];
+      dailyMap[p.dueDate].push(p);
+    });
+    const dailyEntries = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
+    const container = document.createElement('div');
+    container.style.width = '210mm';
+    container.style.fontFamily = "-apple-system, 'Inter', sans-serif";
+    container.style.color = '#1c1c1c';
+    container.style.background = '#fff';
+
+    let page1 = `
+      <div style="padding: 24px; page-break-after: always;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #007AFF; padding-bottom: 12px; margin-bottom: 16px;">
+          <div>
+            <h2 style="font-size: 16px; font-weight: 800; text-transform: uppercase; margin: 0;">Relatório Personalizado</h2>
+            <p style="font-size: 8px; color: #999; text-transform: uppercase; letter-spacing: 2px; margin: 4px 0 0 0;">Período: ${periodLabel} • ${allPurchases.length} notas • Extraído em ${new Date().toLocaleDateString('pt-BR')}</p>
+          </div>
+          <div style="background: #1c1c1c; color: #fff; padding: 10px 16px; border-radius: 14px; text-align: right;">
+            <p style="font-size: 7px; text-transform: uppercase; opacity: 0.5; margin: 0;">Total</p>
+            <p style="font-size: 14px; font-weight: 700; margin: 2px 0 0 0;">${formatCurrency(totalSpent)}</p>
+          </div>
+        </div>
+
+        <div style="background: #fafafa; padding: 16px; border-radius: 14px; margin-bottom: 16px;">
+          <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 12px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 8px;">Fluxo de Vencimentos</h3>
+          ${totalsByDate.slice(0, 15).map(item => {
+            const max = Math.max(...totalsByDate.map(t => t.amount)) || 1;
+            const statusColor = getStatusInfo(item.date).color === 'text-destructive' ? '#dc2626' : getStatusInfo(item.date).color === 'text-warning' ? '#d97706' : '#16a34a';
+            return `
+              <div style="margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
+                  <span style="color: ${statusColor};">${new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                  <span>${formatCurrency(item.amount)}</span>
+                </div>
+                <div style="width: 100%; background: #e5e5e5; height: 6px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
+                  <div style="height: 100%; background: #007AFF; border-radius: 999px; width: ${(item.amount / max) * 100}%;"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="background: #fafafa; padding: 14px; border-radius: 14px; margin-bottom: 16px;">
+          <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
+          ${topCompanies.map((item, idx) => `
+            <div style="margin-bottom: 5px;">
+              <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
+                <span>${idx + 1}. ${item.name}</span>
+                <span>${formatCurrency(item.amount)}</span>
+              </div>
+              <div style="width: 100%; background: #e5e5e5; height: 4px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
+                <div style="height: 100%; background: #1c1c1c; border-radius: 999px; width: ${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%;"></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          ${sectorEntries.slice(0, 10).map(([name, amount]) => `
+            <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
+              <h4 style="font-size: 6px; font-weight: 700; color: #999; text-transform: uppercase; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</h4>
+              <p style="font-size: 8px; font-weight: 700; margin: 0;">${formatCurrency(amount)}</p>
+              <p style="font-size: 6px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.1); padding: 2px; border-radius: 999px; margin: 4px 0 0 0;">${totalSpent > 0 ? (amount / totalSpent * 100).toFixed(1) : 0}%</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    // Page 2 - Daily table
+    let page2 = `
+      <div style="padding: 24px;">
+        <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5;">
+          <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Notas por Dia — ${periodLabel}</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #e5e5e5;">
+                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Empresa</th>
+                <th style="text-align: center; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Vencimento</th>
+                <th style="text-align: right; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${dailyEntries.map(([date, items]) => {
+                const dayTotal = items.reduce((a, p) => a + (p.amount || 0), 0);
+                return `
+                  <tr style="background: #f0f0f0; border-bottom: 1px solid #e5e5e5;">
+                    <td colspan="2" style="padding: 6px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #333;">${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                    <td style="padding: 6px 12px; text-align: right; font-size: 8px; font-weight: 800; color: #007AFF;">${formatCurrency(dayTotal)}</td>
+                  </tr>
+                  ${items.map(p => `
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                      <td style="padding: 5px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
+                      <td style="padding: 5px 12px; text-align: center; color: #666;">${new Date(p.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                      <td style="padding: 5px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
+                    </tr>
+                  `).join('')}
+                `;
+              }).join('')}
+              <tr style="border-top: 2px solid #007AFF; background: #f5f5f7;">
+                <td colspan="2" style="padding: 8px 12px; font-size: 9px; font-weight: 800; text-transform: uppercase;">Total Geral</td>
+                <td style="padding: 8px 12px; text-align: right; font-size: 10px; font-weight: 800; color: #007AFF;">${formatCurrency(totalSpent)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = page1 + page2;
+    document.body.appendChild(container);
+    const opt = {
+      margin: 0,
+      filename: `Relatorio_Personalizado_${new Date().getTime()}.pdf`,
       image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { scale: 2.5, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
@@ -569,18 +748,78 @@ const CyclesPage: React.FC = () => {
                 className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
-                Consolidado (todos somados)
+                Relatório de Todos os Ciclos
               </button>
               <button
-                onClick={handleGenerateIndividualPDF}
-                disabled={isGeneratingPDF}
+                onClick={() => { setShowPDFModal(false); setCustomPDFFrom(''); setCustomPDFTo(''); setShowCustomPDFModal(true); }}
                 className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
-                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Individual (cada ciclo)
+                <Calendar className="w-4 h-4" />
+                Relatório Personalizado
               </button>
               <button
                 onClick={() => setShowPDFModal(false)}
+                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom PDF Period Modal */}
+      {showCustomPDFModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-foreground/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-3xl p-8 max-w-sm w-full apple-shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground uppercase tracking-tight">Relatório Personalizado</h3>
+              <button onClick={() => setShowCustomPDFModal(false)} className="p-2 rounded-xl hover:bg-secondary transition-all">
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-6 leading-relaxed font-medium">
+              Selecione o período para gerar o relatório:
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Data de Início
+                </label>
+                <input
+                  type="date"
+                  value={customPDFFrom}
+                  onChange={e => setCustomPDFFrom(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Data de Término
+                </label>
+                <input
+                  type="date"
+                  value={customPDFTo}
+                  onChange={e => setCustomPDFTo(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 mt-8">
+              <button
+                onClick={() => { handleGenerateCustomPDF(); }}
+                disabled={isGeneratingPDF || !customPDFFrom || !customPDFTo}
+                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                Baixar PDF
+              </button>
+              <button
+                onClick={() => setShowCustomPDFModal(false)}
                 className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
               >
                 Cancelar

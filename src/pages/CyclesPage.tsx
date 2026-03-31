@@ -377,8 +377,9 @@ const CyclesPage: React.FC = () => {
     setShowCustomPDFModal(false);
 
     const allPurchases = cycles.flatMap(c => c.purchases).filter(p => {
-      if (customPDFFrom && p.dueDate < customPDFFrom) return false;
-      if (customPDFTo && p.dueDate > customPDFTo) return false;
+      const refDate = p.createdAt ? p.createdAt.slice(0, 10) : p.dueDate;
+      if (customPDFFrom && refDate < customPDFFrom) return false;
+      if (customPDFTo && refDate > customPDFTo) return false;
       return true;
     });
 

@@ -279,58 +279,75 @@ const CyclesPage: React.FC = () => {
           }).join('')}
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div style="background: #fafafa; padding: 14px; border-radius: 14px;">
-            <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
-            ${topCompanies.map((item, idx) => `
-              <div style="margin-bottom: 5px;">
-                <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
-                  <span>${idx + 1}. ${item.name}</span>
-                  <span>${formatCurrency(item.amount)}</span>
-                </div>
-                <div style="width: 100%; background: #e5e5e5; height: 4px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
-                  <div style="height: 100%; background: #1c1c1c; border-radius: 999px; width: ${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%;"></div>
-                </div>
+        <div style="background: #fafafa; padding: 14px; border-radius: 14px; margin-bottom: 16px;">
+          <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
+          ${topCompanies.map((item, idx) => `
+            <div style="margin-bottom: 5px;">
+              <div style="display: flex; justify-content: space-between; font-size: 7px; font-weight: 700; text-transform: uppercase;">
+                <span>${idx + 1}. ${item.name}</span>
+                <span>${formatCurrency(item.amount)}</span>
               </div>
-            `).join('')}
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            ${sectorEntries.slice(0, 10).map(([name, amount]) => `
-              <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
-                <h4 style="font-size: 6px; font-weight: 700; color: #999; text-transform: uppercase; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</h4>
-                <p style="font-size: 8px; font-weight: 700; margin: 0;">${formatCurrency(amount)}</p>
-                <p style="font-size: 6px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.1); padding: 2px; border-radius: 999px; margin: 4px 0 0 0;">${totalSpent > 0 ? (amount / totalSpent * 100).toFixed(1) : 0}%</p>
+              <div style="width: 100%; background: #e5e5e5; height: 4px; border-radius: 999px; overflow: hidden; margin-top: 2px;">
+                <div style="height: 100%; background: #1c1c1c; border-radius: 999px; width: ${(item.amount / (topCompanies[0]?.amount || 1)) * 100}%;"></div>
               </div>
-            `).join('')}
-          </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          ${sectorEntries.slice(0, 10).map(([name, amount]) => `
+            <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
+              <h4 style="font-size: 6px; font-weight: 700; color: #999; text-transform: uppercase; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</h4>
+              <p style="font-size: 8px; font-weight: 700; margin: 0;">${formatCurrency(amount)}</p>
+              <p style="font-size: 6px; font-weight: 700; color: #007AFF; background: rgba(0,122,255,0.1); padding: 2px; border-radius: 999px; margin: 4px 0 0 0;">${totalSpent > 0 ? (amount / totalSpent * 100).toFixed(1) : 0}%</p>
+            </div>
+          `).join('')}
         </div>
       </div>
     `;
 
-    // Page 2 - All purchases table
+    // Page 2 - Daily table + all purchases
     const allSorted = [...allPurchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const dailyMap: Record<string, typeof allPurchases> = {};
+    allPurchases.forEach(p => {
+      if (!dailyMap[p.dueDate]) dailyMap[p.dueDate] = [];
+      dailyMap[p.dueDate].push(p);
+    });
+    const dailyEntries = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
     let page2 = `
       <div style="padding: 24px;">
-        <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5;">
-          <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Cronograma Consolidado</div>
+        <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5; margin-bottom: 20px;">
+          <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Notas Cadastradas por Dia</div>
           <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
             <thead>
               <tr style="border-bottom: 1px solid #e5e5e5;">
-                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Fornecedor</th>
-                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Setor</th>
+                <th style="text-align: left; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Empresa</th>
                 <th style="text-align: center; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Vencimento</th>
                 <th style="text-align: right; padding: 8px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Valor</th>
               </tr>
             </thead>
             <tbody>
-              ${allSorted.map(p => `
-                <tr style="border-bottom: 1px solid #f0f0f0;">
-                  <td style="padding: 5px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
-                  <td style="padding: 5px 12px; color: #666;">${p.sector}</td>
-                  <td style="padding: 5px 12px; text-align: center; color: ${getStatusInfo(p.dueDate).color === 'text-destructive' ? '#dc2626' : getStatusInfo(p.dueDate).color === 'text-warning' ? '#d97706' : '#16a34a'};">${new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
-                  <td style="padding: 5px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
-                </tr>
-              `).join('')}
+              ${dailyEntries.map(([date, items]) => {
+                const dayTotal = items.reduce((a, p) => a + (p.amount || 0), 0);
+                return `
+                  <tr style="background: #f0f0f0; border-bottom: 1px solid #e5e5e5;">
+                    <td colspan="2" style="padding: 6px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #333;">${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                    <td style="padding: 6px 12px; text-align: right; font-size: 8px; font-weight: 800; color: #007AFF;">${formatCurrency(dayTotal)}</td>
+                  </tr>
+                  ${items.map(p => `
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                      <td style="padding: 5px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
+                      <td style="padding: 5px 12px; text-align: center; color: #666;">${new Date(p.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                      <td style="padding: 5px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
+                    </tr>
+                  `).join('')}
+                `;
+              }).join('')}
+              <tr style="border-top: 2px solid #007AFF; background: #f5f5f7;">
+                <td colspan="2" style="padding: 8px 12px; font-size: 9px; font-weight: 800; text-transform: uppercase;">Total Geral</td>
+                <td style="padding: 8px 12px; text-align: right; font-size: 10px; font-weight: 800; color: #007AFF;">${formatCurrency(totalSpent)}</td>
+              </tr>
             </tbody>
           </table>
         </div>

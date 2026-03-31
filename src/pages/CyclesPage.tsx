@@ -572,18 +572,78 @@ const CyclesPage: React.FC = () => {
                 className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
-                Consolidado (todos somados)
+                Relatório de Todos os Ciclos
               </button>
               <button
-                onClick={handleGenerateIndividualPDF}
-                disabled={isGeneratingPDF}
+                onClick={() => { setShowPDFModal(false); setCustomPDFFrom(''); setCustomPDFTo(''); setShowCustomPDFModal(true); }}
                 className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
               >
-                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Individual (cada ciclo)
+                <Calendar className="w-4 h-4" />
+                Relatório Personalizado
               </button>
               <button
                 onClick={() => setShowPDFModal(false)}
+                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom PDF Period Modal */}
+      {showCustomPDFModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-foreground/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-3xl p-8 max-w-sm w-full apple-shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground uppercase tracking-tight">Relatório Personalizado</h3>
+              <button onClick={() => setShowCustomPDFModal(false)} className="p-2 rounded-xl hover:bg-secondary transition-all">
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-6 leading-relaxed font-medium">
+              Selecione o período para gerar o relatório:
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Data de Início
+                </label>
+                <input
+                  type="date"
+                  value={customPDFFrom}
+                  onChange={e => setCustomPDFFrom(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  <Calendar className="w-3 h-3 inline mr-1" />
+                  Data de Término
+                </label>
+                <input
+                  type="date"
+                  value={customPDFTo}
+                  onChange={e => setCustomPDFTo(e.target.value)}
+                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 mt-8">
+              <button
+                onClick={() => { handleGenerateCustomPDF(); }}
+                disabled={isGeneratingPDF || !customPDFFrom || !customPDFTo}
+                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                Baixar PDF
+              </button>
+              <button
+                onClick={() => setShowCustomPDFModal(false)}
                 className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
               >
                 Cancelar

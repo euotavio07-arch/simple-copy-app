@@ -1,18 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Trash2, Calendar, Receipt, AlertCircle, Printer, Loader2, ChevronRight, X, BarChart3, FileText, Pencil, Check } from 'lucide-react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Cycle, DEFAULT_SECTORS } from '@/types/purchases';
+import { Plus, FolderOpen, Trash2, Calendar, Receipt, AlertCircle, Printer, Loader2, ChevronRight, X, BarChart3, FileText, Pencil, Check, LogOut } from 'lucide-react';
+import { DEFAULT_SECTORS } from '@/types/purchases';
+import { useCycles, useCycleActions, useAppSettings } from '@/hooks/useSupabaseData';
+import { useAuth } from '@/contexts/AuthContext';
 import logoImg from '@/assets/logo-fotech-horizontal.png';
-
-const generateId = () => Math.random().toString(36).substring(2, 15);
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
 const CyclesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [cycles, setCycles] = useLocalStorage<Cycle[]>('cycles', []);
+  const { signOut } = useAuth();
+  const { cycles, loading, refetch } = useCycles();
+  const { createCycle, updateCycle, deleteCycle } = useCycleActions();
+  const { appName, setAppName } = useAppSettings();
+  
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; id: string | null; name: string }>({ show: false, id: null, name: '' });
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
@@ -36,7 +39,6 @@ const CyclesPage: React.FC = () => {
   const [customPeriodTo, setCustomPeriodTo] = useState('');
 
   // Editable app name
-  const [appName, setAppName] = useLocalStorage<string>('appName', 'Gestor Gerencial');
   const [isEditingAppName, setIsEditingAppName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
 
@@ -59,44 +61,38 @@ const CyclesPage: React.FC = () => {
     setShowNewCycleModal(true);
   };
 
-  const handleCreateCycle = () => {
+  const handleCreateCycle = async () => {
     if (!newCyclePeriodFrom || !newCyclePeriodTo) return;
-    const newCycle: Cycle = {
-      id: generateId(),
+    const cycleId = await createCycle({
       name: newCycleName || `Ciclo ${new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-      createdAt: new Date().toISOString(),
       periodFrom: newCyclePeriodFrom,
       periodTo: newCyclePeriodTo,
-      purchases: [],
-      companies: [],
-      sectors: DEFAULT_SECTORS.map(n => ({ id: generateId(), name: n })),
-      purchaseLimit: 120000,
-    };
-    const updated = [newCycle, ...cycles];
-    window.localStorage.setItem('cycles', JSON.stringify(updated));
-    setCycles(updated);
+      defaultSectors: DEFAULT_SECTORS,
+    });
     setShowNewCycleModal(false);
-    navigate(`/cycle/${newCycle.id}`);
+    if (cycleId) navigate(`/cycle/${cycleId}`);
   };
 
-  const openEditCycleModal = (cycle: Cycle, e: React.MouseEvent) => {
+  const openEditCycleModal = (cycle: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditCycleId(cycle.id);
     setEditCycleName(cycle.name);
-    setEditCyclePeriodFrom(cycle.periodFrom || '');
-    setEditCyclePeriodTo(cycle.periodTo || '');
+    setEditCyclePeriodFrom(cycle.periodFrom || cycle.period_from || '');
+    setEditCyclePeriodTo(cycle.periodTo || cycle.period_to || '');
     setShowEditCycleModal(true);
   };
 
-  const handleEditCycle = () => {
-    setCycles(prev => prev.map(c => c.id === editCycleId ? { ...c, name: editCycleName, periodFrom: editCyclePeriodFrom, periodTo: editCyclePeriodTo } : c));
+  const handleEditCycle = async () => {
+    await updateCycle(editCycleId, { name: editCycleName, periodFrom: editCyclePeriodFrom, periodTo: editCyclePeriodTo });
     setShowEditCycleModal(false);
+    refetch();
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (!confirmDelete.id) return;
-    setCycles(prev => prev.filter(c => c.id !== confirmDelete.id));
+    await deleteCycle(confirmDelete.id);
     setConfirmDelete({ show: false, id: null, name: '' });
+    refetch();
   };
 
   const getStatusInfo = (dateStr: string) => {
@@ -115,7 +111,58 @@ const CyclesPage: React.FC = () => {
     return `${f} — ${t}`;
   };
 
-  // PDF individual per cycle (existing behavior)
+  // Helper to build grouped-by-createdAt table HTML
+  const buildGroupedByCreatedAtTable = (purchasesList: any[]) => {
+    const grouped: Record<string, any[]> = {};
+    purchasesList.forEach(p => {
+      const ca = p.createdAt || p.created_at || '';
+      const dateKey = ca ? ca.split('T')[0] : 'sem-data';
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(p);
+    });
+    const sortedDates = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const grandTotal = purchasesList.reduce((a: number, p: any) => a + (p.amount || 0), 0);
+
+    return `
+      <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5;">
+        <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Notas Cadastradas por Dia</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+          ${sortedDates.map(dateKey => {
+            const notes = grouped[dateKey];
+            const subtotal = notes.reduce((a: number, p: any) => a + (p.amount || 0), 0);
+            const dateLabel = dateKey === 'sem-data' ? 'Sem data' : new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            return `
+              <tr style="background: #e8e8e8;">
+                <td colspan="3" style="padding: 6px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #333;">${dateLabel}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e5e5e5;">
+                <th style="text-align: left; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Empresa</th>
+                <th style="text-align: center; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Vencimento</th>
+                <th style="text-align: right; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Valor</th>
+              </tr>
+              ${notes.map((p: any) => `
+                <tr style="border-bottom: 1px solid #f0f0f0;">
+                  <td style="padding: 4px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
+                  <td style="padding: 4px 12px; text-align: center; color: #666;">${new Date(p.dueDate || p.due_date).toLocaleDateString('pt-BR')}</td>
+                  <td style="padding: 4px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
+                </tr>
+              `).join('')}
+              <tr style="border-bottom: 2px solid #ddd; background: #f5f5f7;">
+                <td colspan="2" style="padding: 5px 12px; font-size: 7px; font-weight: 700; text-transform: uppercase; color: #999;">Subtotal do dia</td>
+                <td style="padding: 5px 12px; text-align: right; font-weight: 800; font-size: 9px;">${formatCurrency(subtotal)}</td>
+              </tr>
+            `;
+          }).join('')}
+          <tr style="background: #1c1c1c; color: #fff;">
+            <td colspan="2" style="padding: 8px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase;">Total Geral</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-size: 10px;">${formatCurrency(grandTotal)}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+  };
+
+  // PDF individual per cycle
   const handleGenerateIndividualPDF = async () => {
     const html2pdf = (window as any).html2pdf;
     if (!html2pdf || cycles.length === 0) return;
@@ -129,9 +176,9 @@ const CyclesPage: React.FC = () => {
     container.style.background = '#fff';
 
     cycles.forEach((cycle, cycleIdx) => {
-      const totalSpent = cycle.purchases.reduce((a, p) => a + (p.amount || 0), 0);
+      const totalSpent = cycle.purchases.reduce((a: number, p: any) => a + (p.amount || 0), 0);
       const balance = cycle.purchaseLimit - totalSpent;
-      const sorted = [...cycle.purchases].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+      const sorted = [...cycle.purchases].sort((a: any, b: any) => new Date(a.dueDate || a.due_date).getTime() - new Date(b.dueDate || b.due_date).getTime());
       const period = formatPeriod(cycle.periodFrom, cycle.periodTo);
 
       let html = `
@@ -170,11 +217,11 @@ const CyclesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              ${sorted.map(p => `
+              ${sorted.map((p: any) => `
                 <tr style="border-bottom: 1px solid #f0f0f0;">
                   <td style="padding: 6px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
                   <td style="padding: 6px 12px; color: #666;">${p.sector}</td>
-                  <td style="padding: 6px 12px; text-align: center; color: ${getStatusInfo(p.dueDate).color === 'text-destructive' ? '#dc2626' : getStatusInfo(p.dueDate).color === 'text-warning' ? '#d97706' : '#16a34a'};">${new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
+                  <td style="padding: 6px 12px; text-align: center; color: ${getStatusInfo(p.dueDate || p.due_date).color === 'text-destructive' ? '#dc2626' : getStatusInfo(p.dueDate || p.due_date).color === 'text-warning' ? '#d97706' : '#16a34a'};">${new Date(p.dueDate || p.due_date).toLocaleDateString('pt-BR')}</td>
                   <td style="padding: 6px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
                 </tr>
               `).join('')}
@@ -199,57 +246,7 @@ const CyclesPage: React.FC = () => {
     setIsGeneratingPDF(false);
   };
 
-  // Helper to build grouped-by-createdAt table HTML
-  const buildGroupedByCreatedAtTable = (purchasesList: typeof cycles[0]['purchases']) => {
-    const grouped: Record<string, typeof purchasesList> = {};
-    purchasesList.forEach(p => {
-      const dateKey = p.createdAt ? p.createdAt.split('T')[0] : 'sem-data';
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(p);
-    });
-    const sortedDates = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    const grandTotal = purchasesList.reduce((a, p) => a + (p.amount || 0), 0);
-
-    return `
-      <div style="background: #fafafa; border-radius: 14px; overflow: hidden; border: 1px solid #e5e5e5;">
-        <div style="padding: 10px; background: #f0f0f0; border-bottom: 1px solid #e5e5e5; text-align: center; text-transform: uppercase; letter-spacing: 2px; font-size: 8px; font-weight: 700;">Notas Cadastradas por Dia</div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-          ${sortedDates.map(dateKey => {
-            const notes = grouped[dateKey];
-            const subtotal = notes.reduce((a, p) => a + (p.amount || 0), 0);
-            const dateLabel = dateKey === 'sem-data' ? 'Sem data' : new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            return `
-              <tr style="background: #e8e8e8;">
-                <td colspan="3" style="padding: 6px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #333;">${dateLabel}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e5e5e5;">
-                <th style="text-align: left; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Empresa</th>
-                <th style="text-align: center; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Vencimento</th>
-                <th style="text-align: right; padding: 4px 12px; font-size: 7px; text-transform: uppercase; color: #999;">Valor</th>
-              </tr>
-              ${notes.map(p => `
-                <tr style="border-bottom: 1px solid #f0f0f0;">
-                  <td style="padding: 4px 12px; font-weight: 600; text-transform: uppercase;">${p.company}</td>
-                  <td style="padding: 4px 12px; text-align: center; color: #666;">${new Date(p.dueDate).toLocaleDateString('pt-BR')}</td>
-                  <td style="padding: 4px 12px; text-align: right; font-weight: 700;">${formatCurrency(p.amount)}</td>
-                </tr>
-              `).join('')}
-              <tr style="border-bottom: 2px solid #ddd; background: #f5f5f7;">
-                <td colspan="2" style="padding: 5px 12px; font-size: 7px; font-weight: 700; text-transform: uppercase; color: #999;">Subtotal do dia</td>
-                <td style="padding: 5px 12px; text-align: right; font-weight: 800; font-size: 9px;">${formatCurrency(subtotal)}</td>
-              </tr>
-            `;
-          }).join('')}
-          <tr style="background: #1c1c1c; color: #fff;">
-            <td colspan="2" style="padding: 8px 12px; font-size: 8px; font-weight: 800; text-transform: uppercase;">Total Geral</td>
-            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-size: 10px;">${formatCurrency(grandTotal)}</td>
-          </tr>
-        </table>
-      </div>
-    `;
-  };
-
-  // PDF consolidated — all cycles summed with graphs
+  // PDF consolidated
   const handleGenerateConsolidatedPDF = async () => {
     const html2pdf = (window as any).html2pdf;
     if (!html2pdf || cycles.length === 0) return;
@@ -258,19 +255,19 @@ const CyclesPage: React.FC = () => {
 
     const allPurchases = cycles.flatMap(c => c.purchases);
     const totalLimit = cycles.reduce((a, c) => a + c.purchaseLimit, 0);
-    const totalSpent = allPurchases.reduce((a, p) => a + (p.amount || 0), 0);
+    const totalSpent = allPurchases.reduce((a: number, p: any) => a + (p.amount || 0), 0);
     const balance = totalLimit - totalSpent;
 
     const dateMap: Record<string, number> = {};
-    allPurchases.forEach(p => { dateMap[p.dueDate] = (dateMap[p.dueDate] || 0) + (p.amount || 0); });
+    allPurchases.forEach((p: any) => { const d = p.dueDate || p.due_date; dateMap[d] = (dateMap[d] || 0) + (p.amount || 0); });
     const totalsByDate = Object.entries(dateMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()).map(([date, amount]) => ({ date, amount }));
 
     const compMap: Record<string, number> = {};
-    allPurchases.forEach(p => { compMap[p.company] = (compMap[p.company] || 0) + (p.amount || 0); });
+    allPurchases.forEach((p: any) => { compMap[p.company] = (compMap[p.company] || 0) + (p.amount || 0); });
     const topCompanies = Object.entries(compMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, amount]) => ({ name, amount }));
 
     const sectorMap: Record<string, number> = {};
-    allPurchases.forEach(p => { sectorMap[p.sector] = (sectorMap[p.sector] || 0) + (p.amount || 0); });
+    allPurchases.forEach((p: any) => { sectorMap[p.sector] = (sectorMap[p.sector] || 0) + (p.amount || 0); });
     const sectorEntries = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
 
     const container = document.createElement('div');
@@ -305,7 +302,6 @@ const CyclesPage: React.FC = () => {
             <p style="font-size: 13px; font-weight: 700; color: #16a34a; margin: 4px 0 0 0;">${formatCurrency(balance)}</p>
           </div>
         </div>
-
         <div style="background: #fafafa; padding: 14px; border-radius: 14px; margin-bottom: 16px;">
           <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
           ${topCompanies.map((item, idx) => `
@@ -320,7 +316,6 @@ const CyclesPage: React.FC = () => {
             </div>
           `).join('')}
         </div>
-
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           ${sectorEntries.slice(0, 10).map(([name, amount]) => `
             <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
@@ -354,7 +349,7 @@ const CyclesPage: React.FC = () => {
     setIsGeneratingPDF(false);
   };
 
-  // PDF personalizado — filtered by custom period
+  // PDF personalizado
   const handleGenerateCustomPeriodPDF = async () => {
     const html2pdf = (window as any).html2pdf;
     if (!html2pdf || !customPeriodFrom || !customPeriodTo) return;
@@ -362,19 +357,20 @@ const CyclesPage: React.FC = () => {
     setShowPDFModal(false);
     setShowCustomPeriodStep(false);
 
-    const allPurchases = cycles.flatMap(c => c.purchases).filter(p => {
-      const createdDate = p.createdAt ? p.createdAt.split('T')[0] : '';
+    const allPurchases = cycles.flatMap(c => c.purchases).filter((p: any) => {
+      const ca = p.createdAt || p.created_at || '';
+      const createdDate = ca ? ca.split('T')[0] : '';
       return createdDate >= customPeriodFrom && createdDate <= customPeriodTo;
     });
 
-    const totalSpent = allPurchases.reduce((a, p) => a + (p.amount || 0), 0);
+    const totalSpent = allPurchases.reduce((a: number, p: any) => a + (p.amount || 0), 0);
 
     const compMap: Record<string, number> = {};
-    allPurchases.forEach(p => { compMap[p.company] = (compMap[p.company] || 0) + (p.amount || 0); });
+    allPurchases.forEach((p: any) => { compMap[p.company] = (compMap[p.company] || 0) + (p.amount || 0); });
     const topCompanies = Object.entries(compMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, amount]) => ({ name, amount }));
 
     const sectorMap: Record<string, number> = {};
-    allPurchases.forEach(p => { sectorMap[p.sector] = (sectorMap[p.sector] || 0) + (p.amount || 0); });
+    allPurchases.forEach((p: any) => { sectorMap[p.sector] = (sectorMap[p.sector] || 0) + (p.amount || 0); });
     const sectorEntries = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
 
     const periodLabel = `${new Date(customPeriodFrom + 'T12:00:00').toLocaleDateString('pt-BR')} — ${new Date(customPeriodTo + 'T12:00:00').toLocaleDateString('pt-BR')}`;
@@ -397,7 +393,6 @@ const CyclesPage: React.FC = () => {
             <p style="font-size: 14px; font-weight: 700; margin: 2px 0 0 0;">${formatCurrency(totalSpent)}</p>
           </div>
         </div>
-
         <div style="background: #fafafa; padding: 14px; border-radius: 14px; margin-bottom: 16px;">
           <h3 style="font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; text-align: center; margin: 0 0 10px 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px;">Top 10 Fornecedores</h3>
           ${topCompanies.map((item, idx) => `
@@ -412,7 +407,6 @@ const CyclesPage: React.FC = () => {
             </div>
           `).join('')}
         </div>
-
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           ${sectorEntries.slice(0, 10).map(([name, amount]) => `
             <div style="background: #fafafa; padding: 8px; border-radius: 10px; border: 1px solid #e5e5e5; text-align: center;">
@@ -446,6 +440,14 @@ const CyclesPage: React.FC = () => {
     setIsGeneratingPDF(false);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
       <nav className="glass sticky top-0 z-50 border-b border-border/60">
@@ -454,7 +456,7 @@ const CyclesPage: React.FC = () => {
           <div className="flex justify-center mb-4 py-2">
             <img src={logoImg} alt="FOTech Solutions" className="h-20 object-contain drop-shadow-lg" />
           </div>
-          {/* Name left, PDF right */}
+          {/* Name left, PDF + Logout right */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isEditingAppName ? (
@@ -481,16 +483,25 @@ const CyclesPage: React.FC = () => {
                 </div>
               )}
             </div>
-            {cycles.length > 1 && (
+            <div className="flex items-center gap-2">
+              {cycles.length > 1 && (
+                <button
+                  onClick={() => setShowPDFModal(true)}
+                  disabled={isGeneratingPDF}
+                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
+                >
+                  {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                  PDF Geral
+                </button>
+              )}
               <button
-                onClick={() => setShowPDFModal(true)}
-                disabled={isGeneratingPDF}
-                className="bg-secondary text-foreground px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-wider flex items-center gap-2 active:scale-95 transition-all apple-shadow-sm border border-border/40"
+                onClick={signOut}
+                className="p-2.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
+                title="Sair"
               >
-                {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-                PDF Geral
+                <LogOut className="w-4 h-4" />
               </button>
-            )}
+            </div>
           </div>
         </div>
       </nav>
@@ -521,7 +532,7 @@ const CyclesPage: React.FC = () => {
           <div className="space-y-3">
             <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Ciclos Salvos ({cycles.length})</h2>
             {cycles.map(cycle => {
-              const totalSpent = cycle.purchases.reduce((a, p) => a + (p.amount || 0), 0);
+              const totalSpent = cycle.purchases.reduce((a: number, p: any) => a + (p.amount || 0), 0);
               const balance = cycle.purchaseLimit - totalSpent;
               const period = formatPeriod(cycle.periodFrom, cycle.periodTo);
               return (
@@ -587,62 +598,23 @@ const CyclesPage: React.FC = () => {
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Nome do Ciclo</label>
-                <input
-                  type="text"
-                  value={newCycleName}
-                  onChange={e => setNewCycleName(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                  placeholder="Ex: Ciclo Janeiro 2025"
-                />
+                <input type="text" value={newCycleName} onChange={e => setNewCycleName(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" placeholder="Ex: Ciclo Janeiro 2025" />
               </div>
-
               <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Período — Início
-                </label>
-                <input
-                  type="date"
-                  value={newCyclePeriodFrom}
-                  onChange={e => setNewCyclePeriodFrom(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                  required
-                />
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Período — Início</label>
+                <input type="date" value={newCyclePeriodFrom} onChange={e => setNewCyclePeriodFrom(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" required />
               </div>
-
               <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Período — Fim
-                </label>
-                <input
-                  type="date"
-                  value={newCyclePeriodTo}
-                  onChange={e => setNewCyclePeriodTo(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                  required
-                />
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Período — Fim</label>
+                <input type="date" value={newCyclePeriodTo} onChange={e => setNewCyclePeriodTo(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" required />
               </div>
             </div>
-
             <div className="flex flex-col gap-3 mt-8">
-              <button
-                onClick={handleCreateCycle}
-                disabled={!newCyclePeriodFrom || !newCyclePeriodTo}
-                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all disabled:opacity-40"
-              >
-                Criar Ciclo
-              </button>
-              <button
-                onClick={() => setShowNewCycleModal(false)}
-                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
-              >
-                Cancelar
-              </button>
+              <button onClick={handleCreateCycle} disabled={!newCyclePeriodFrom || !newCyclePeriodTo} className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all disabled:opacity-40">Criar Ciclo</button>
+              <button onClick={() => setShowNewCycleModal(false)} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Cancelar</button>
             </div>
           </div>
         </div>
@@ -656,76 +628,36 @@ const CyclesPage: React.FC = () => {
               <Printer className="w-8 h-8 text-primary" />
             </div>
             <h3 className="text-lg font-bold text-foreground uppercase tracking-tight mb-2">Gerar PDF Geral</h3>
-            <p className="text-xs text-muted-foreground mb-8 leading-relaxed font-medium">
-              Escolha o tipo de relatório que deseja gerar:
-            </p>
-
+            <p className="text-xs text-muted-foreground mb-8 leading-relaxed font-medium">Escolha o tipo de relatório que deseja gerar:</p>
             {!showCustomPeriodStep ? (
               <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleGenerateConsolidatedPDF}
-                  disabled={isGeneratingPDF}
-                  className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
+                <button onClick={handleGenerateConsolidatedPDF} disabled={isGeneratingPDF} className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
                   {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
                   Relatório de Todos os Ciclos
                 </button>
-                <button
-                  onClick={() => setShowCustomPeriodStep(true)}
-                  className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
+                <button onClick={() => setShowCustomPeriodStep(true)} className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Relatório Personalizado
                 </button>
-                <button
-                  onClick={() => setShowPDFModal(false)}
-                  className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
-                >
-                  Cancelar
-                </button>
+                <button onClick={() => setShowPDFModal(false)} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Cancelar</button>
               </div>
             ) : (
               <div className="space-y-4 text-left">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-center">Selecione o período (data de cadastro)</p>
                 <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                    <Calendar className="w-3 h-3 inline mr-1" />
-                    Data Início
-                  </label>
-                  <input
-                    type="date"
-                    value={customPeriodFrom}
-                    onChange={e => setCustomPeriodFrom(e.target.value)}
-                    className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                  />
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Data Início</label>
+                  <input type="date" value={customPeriodFrom} onChange={e => setCustomPeriodFrom(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                    <Calendar className="w-3 h-3 inline mr-1" />
-                    Data Fim
-                  </label>
-                  <input
-                    type="date"
-                    value={customPeriodTo}
-                    onChange={e => setCustomPeriodTo(e.target.value)}
-                    className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                  />
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Data Fim</label>
+                  <input type="date" value={customPeriodTo} onChange={e => setCustomPeriodTo(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" />
                 </div>
                 <div className="flex flex-col gap-3 mt-6">
-                  <button
-                    onClick={handleGenerateCustomPeriodPDF}
-                    disabled={isGeneratingPDF || !customPeriodFrom || !customPeriodTo}
-                    className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
-                  >
+                  <button onClick={handleGenerateCustomPeriodPDF} disabled={isGeneratingPDF || !customPeriodFrom || !customPeriodTo} className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40">
                     {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                     Baixar PDF
                   </button>
-                  <button
-                    onClick={() => setShowCustomPeriodStep(false)}
-                    className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
-                  >
-                    Voltar
-                  </button>
+                  <button onClick={() => setShowCustomPeriodStep(false)} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Voltar</button>
                 </div>
               </div>
             )}
@@ -745,12 +677,8 @@ const CyclesPage: React.FC = () => {
               Todos os dados de <br /><span className="text-destructive font-bold">"{confirmDelete.name}"</span> serão removidos.
             </p>
             <div className="flex flex-col gap-3">
-              <button onClick={executeDelete} className="w-full bg-destructive text-destructive-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all">
-                Eliminar Agora
-              </button>
-              <button onClick={() => setConfirmDelete({ show: false, id: null, name: '' })} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">
-                Cancelar
-              </button>
+              <button onClick={executeDelete} className="w-full bg-destructive text-destructive-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all">Eliminar Agora</button>
+              <button onClick={() => setConfirmDelete({ show: false, id: null, name: '' })} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Cancelar</button>
             </div>
           </div>
         </div>
@@ -766,56 +694,23 @@ const CyclesPage: React.FC = () => {
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Nome do Ciclo</label>
-                <input
-                  type="text"
-                  value={editCycleName}
-                  onChange={e => setEditCycleName(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                />
+                <input type="text" value={editCycleName} onChange={e => setEditCycleName(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Período — Início
-                </label>
-                <input
-                  type="date"
-                  value={editCyclePeriodFrom}
-                  onChange={e => setEditCyclePeriodFrom(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                />
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Período — Início</label>
+                <input type="date" value={editCyclePeriodFrom} onChange={e => setEditCyclePeriodFrom(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Período — Fim
-                </label>
-                <input
-                  type="date"
-                  value={editCyclePeriodTo}
-                  onChange={e => setEditCyclePeriodTo(e.target.value)}
-                  className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all"
-                />
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2"><Calendar className="w-3 h-3 inline mr-1" />Período — Fim</label>
+                <input type="date" value={editCyclePeriodTo} onChange={e => setEditCyclePeriodTo(e.target.value)} className="w-full px-4 py-3 bg-secondary/60 border border-border/60 focus:border-primary rounded-xl text-sm font-medium outline-none transition-all" />
               </div>
             </div>
-
             <div className="flex flex-col gap-3 mt-8">
-              <button
-                onClick={handleEditCycle}
-                className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all"
-              >
-                Salvar Alterações
-              </button>
-              <button
-                onClick={() => setShowEditCycleModal(false)}
-                className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all"
-              >
-                Cancelar
-              </button>
+              <button onClick={handleEditCycle} className="w-full bg-foreground text-background py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider apple-shadow-md active:scale-95 transition-all">Salvar Alterações</button>
+              <button onClick={() => setShowEditCycleModal(false)} className="w-full bg-secondary text-muted-foreground py-4 rounded-2xl font-semibold text-xs uppercase tracking-wider active:scale-95 transition-all">Cancelar</button>
             </div>
           </div>
         </div>
